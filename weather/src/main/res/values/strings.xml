@@ -1,0 +1,25 @@
+<resources>
+    <string name="plugin_name">Weather Wallpaper</string>
+    <string name="plugin_description">Shows current conditions and today\'s high/low as your launcher wallpaper. Data by Open-Meteo.</string>
+
+    <!-- *** GENERATE YOUR OWN UUID V4: https://www.uuidgenerator.net/version4 *** -->
+    <string name="plugin_uuid">3b60f77e-c483-4af4-b4ea-493f1571e47d</string>
+
+    <string name="projectivy_not_installed">Warning, this plugin requires Projectivy Launcher which does not seem to be installed.</string>
+
+    <string name="settings">Settings</string>
+    <string name="setting_latitude_title">Latitude</string>
+    <string name="setting_longitude_title">Longitude</string>
+    <string name="setting_place_title">Location name</string>
+    <string name="setting_units_title">Use metric units</string>
+    <string name="setting_refresh_title">Refresh now</string>
+    <string name="setting_refresh_desc">Fetch current conditions and redraw</string>
+
+    <string name="units_metric">Celsius, km/h</string>
+    <string name="units_imperial">Fahrenheit, mph</string>
+    <string name="default_place_label">Local weather</string>
+
+    <string name="toast_refresh_requested">Refresh requested</string>
+    <string name="toast_bad_latitude">Latitude must be between -90 and 90</string>
+    <string name="toast_bad_longitude">Longitude must be between -180 and 180</string>
+</resources>
