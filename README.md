@@ -44,27 +44,32 @@ Optional, each toggled independently in settings:
 | Source | Needs | Notes |
 |---|---|---|
 | Illustrated scenes | nothing | Drawn in code, matched to conditions. Default. |
-| Live radar | nothing | [RainViewer](https://www.rainviewer.com/) precipitation tiles |
+| Live radar | nothing | [RainViewer](https://www.rainviewer.com/) over a built-in vector map |
 | Your photos | files on the TV | Drop images in the plugin's folder, named by condition |
 | Community packs | nothing | Contributed images and animations, downloaded on demand |
 | Plain gradient | nothing | If you want it quiet |
 
 ### Radar and basemaps
 
-Radar draws precipitation over a plain dark backdrop by default. No map ships
-with the plugin, deliberately: OpenStreetMap's [tile usage policy][osm-policy]
-forbids distributing an app that pulls from their community-funded servers, and
-blocked requests come back as an error tile rather than failing cleanly.
+Radar draws precipitation over a map of coastlines, borders, state lines and
+lakes that is **drawn from vector data bundled in the APK**. No tile server, no
+API key, and it works offline. The data is [Natural Earth][ne] 1:50m, which is
+public domain, simplified and delta-encoded to about 350 KB.
 
-If you want geography behind the radar, supply your own tile URL in settings
-under **Radar basemap tile URL**, using `{z}`, `{x}` and `{y}` placeholders:
+This replaces an earlier version that pulled tiles from OpenStreetMap, which
+their [tile usage policy][osm-policy] does not permit for a distributed app.
+
+If you'd rather have a full raster basemap, you can still supply your own tile
+URL in settings under **Custom basemap tile URL**, using `{z}`, `{x}` and `{y}`
+placeholders:
 
 ```
 https://tiles.example.com/dark/{z}/{x}/{y}.png?key=YOUR_KEY
 ```
 
 Several providers offer free tiers that permit app use. Whichever you pick, put
-their required credit in **Basemap credit line** so it renders on screen.
+their required credit in **Basemap credit line** so it renders on screen. Leave
+the URL blank to use the built-in map.
 
 The illustrated scenes change with both conditions and time of day: star fields
 and a crescent moon at night, cloud banks when overcast, rain streaks, falling
@@ -128,10 +133,10 @@ adb logcat | grep -iE "projengmenu|SecurityException|OpenMeteoClient|PackManager
 **Pack list is empty.** Hit **Refresh pack list**. If it still fails, check that
 `INDEX_URL` in `PackManager.kt` points at this repo.
 
-**Radar shows tiles reading "not supported".** Your basemap provider is
-rejecting the requests. If the URL points at `tile.openstreetmap.org`, that is
-expected and won't be fixable — their policy doesn't permit app use. Clear the
-field to fall back to the plain backdrop, or switch providers.
+**Radar shows tiles reading "not supported".** You've set a custom basemap URL
+and that provider is rejecting the requests. If it points at
+`tile.openstreetmap.org`, that's expected and not fixable — their policy doesn't
+permit app use. Clear the field to fall back to the built-in map.
 
 ## Built with AI assistance
 
@@ -148,9 +153,10 @@ Built on [spocky's wallpaper provider template][template] (Apache 2.0), for
 [Projectivy Launcher][projectivy].
 
 Weather by [Open-Meteo](https://open-meteo.com/), radar by
-[RainViewer](https://www.rainviewer.com/), optional stock photos via
-[Unsplash](https://unsplash.com/). All credited on screen when in use. Any
-basemap you configure is yours to source and credit.
+[RainViewer](https://www.rainviewer.com/), map geometry from
+[Natural Earth](https://www.naturalearthdata.com/) (public domain), optional
+stock photos via [Unsplash](https://unsplash.com/). All credited on screen when
+in use. Any custom basemap you configure is yours to source and credit.
 
 Licensed under Apache 2.0. See [LICENSE](LICENSE).
 
@@ -158,3 +164,4 @@ Licensed under Apache 2.0. See [LICENSE](LICENSE).
 [template]: https://github.com/spocky/projectivy-plugin-wallpaper-provider
 [projectivy]: https://projectivylauncher.com/
 [osm-policy]: https://operations.osmfoundation.org/policies/tiles/
+[ne]: https://www.naturalearthdata.com/
