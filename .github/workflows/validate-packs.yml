@@ -1,0 +1,27 @@
+name: Validate packs
+
+on:
+  pull_request:
+    paths:
+      - 'packs/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'packs/**'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validator deps
+        run: pip install jsonschema requests
+
+      - name: Validate pack index
+        run: python .github/scripts/validate_packs.py
