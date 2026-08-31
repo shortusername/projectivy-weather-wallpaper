@@ -20,6 +20,10 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_BACKGROUND = 6L
         private const val ACTION_ID_UNSPLASH = 7L
         private const val ACTION_ID_RADAR_ZOOM = 8L
+        private const val ACTION_ID_HOURLY = 9L
+        private const val ACTION_ID_DAILY = 10L
+        private const val ACTION_ID_STATS = 11L
+        private const val ACTION_ID_SUN = 12L
 
         // Sub-action ids for the background picker, offset so they can't clash
         // with the top-level ids above.
@@ -133,6 +137,15 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
+        actions.add(checkbox(ACTION_ID_HOURLY, R.string.setting_hourly_title,
+            R.string.setting_hourly_desc, PreferencesManager.showHourly))
+        actions.add(checkbox(ACTION_ID_DAILY, R.string.setting_daily_title,
+            R.string.setting_daily_desc, PreferencesManager.showDaily))
+        actions.add(checkbox(ACTION_ID_STATS, R.string.setting_stats_title,
+            R.string.setting_stats_desc, PreferencesManager.showStats))
+        actions.add(checkbox(ACTION_ID_SUN, R.string.setting_sun_title,
+            R.string.setting_sun_desc, PreferencesManager.showSun))
+
         actions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_REFRESH)
@@ -141,6 +154,15 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
     }
+
+    private fun checkbox(id: Long, titleRes: Int, descRes: Int, checked: Boolean): GuidedAction =
+        GuidedAction.Builder(context)
+            .id(id)
+            .title(titleRes)
+            .description(descRes)
+            .checkSetId(GuidedAction.CHECKBOX_CHECK_SET_ID)
+            .checked(checked)
+            .build()
 
     private fun subAction(id: Long, titleRes: Int): GuidedAction =
         GuidedAction.Builder(context).id(id).title(titleRes).build()
@@ -181,6 +203,22 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 PreferencesManager.useMetric = action.isChecked
                 action.description = unitsLabel()
                 notifyActionChanged(findActionPositionById(ACTION_ID_UNITS))
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_HOURLY -> {
+                PreferencesManager.showHourly = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_DAILY -> {
+                PreferencesManager.showDaily = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_STATS -> {
+                PreferencesManager.showStats = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_SUN -> {
+                PreferencesManager.showSun = action.isChecked
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
             ACTION_ID_REFRESH -> {

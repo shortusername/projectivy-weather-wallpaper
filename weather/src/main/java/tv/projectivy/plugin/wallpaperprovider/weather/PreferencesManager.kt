@@ -25,6 +25,10 @@ object PreferencesManager {
     const val KEY_BACKGROUND = "backgroundSource"
     const val KEY_UNSPLASH = "unsplashKey"
     const val KEY_RADAR_ZOOM = "radarZoom"
+    const val KEY_SHOW_HOURLY = "showHourly"
+    const val KEY_SHOW_DAILY = "showDaily"
+    const val KEY_SHOW_STATS = "showStats"
+    const val KEY_SHOW_SUN = "showSun"
 
     // New York City, so a fresh install shows something rather than nothing.
     private const val DEFAULT_LAT = 40.7128
@@ -74,6 +78,24 @@ object PreferencesManager {
         get() = prefs.getString(KEY_RADAR_ZOOM, null)?.toIntOrNull() ?: 7
         set(v) = prefs.edit().putString(KEY_RADAR_ZOOM, v.toString()).apply()
 
+    // Optional panels. Hourly defaults on; the rest stay off so the panel starts
+    // sparse and the user opts into density.
+    var showHourly: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_HOURLY, true)
+        set(v) = prefs.edit().putBoolean(KEY_SHOW_HOURLY, v).apply()
+
+    var showDaily: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_DAILY, false)
+        set(v) = prefs.edit().putBoolean(KEY_SHOW_DAILY, v).apply()
+
+    var showStats: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_STATS, false)
+        set(v) = prefs.edit().putBoolean(KEY_SHOW_STATS, v).apply()
+
+    var showSun: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_SUN, false)
+        set(v) = prefs.edit().putBoolean(KEY_SHOW_SUN, v).apply()
+
     var locationConfigured: Boolean
         get() = prefs.getBoolean(KEY_CONFIGURED, false)
         set(v) = prefs.edit().putBoolean(KEY_CONFIGURED, v).apply()
@@ -86,6 +108,10 @@ object PreferencesManager {
         put(KEY_CONFIGURED, locationConfigured)
         put(KEY_BACKGROUND, backgroundSource)
         put(KEY_RADAR_ZOOM, radarZoom.toString())
+        put(KEY_SHOW_HOURLY, showHourly)
+        put(KEY_SHOW_DAILY, showDaily)
+        put(KEY_SHOW_STATS, showStats)
+        put(KEY_SHOW_SUN, showSun)
         // Deliberately not exported: an API key shouldn't travel in a settings
         // blob that Projectivy may back up or log.
     }.toString()
@@ -100,6 +126,10 @@ object PreferencesManager {
             if (json.has(KEY_CONFIGURED)) locationConfigured = json.getBoolean(KEY_CONFIGURED)
             if (json.has(KEY_BACKGROUND)) backgroundSource = json.getString(KEY_BACKGROUND)
             if (json.has(KEY_RADAR_ZOOM)) json.optString(KEY_RADAR_ZOOM).toIntOrNull()?.let { radarZoom = it }
+            if (json.has(KEY_SHOW_HOURLY)) showHourly = json.getBoolean(KEY_SHOW_HOURLY)
+            if (json.has(KEY_SHOW_DAILY)) showDaily = json.getBoolean(KEY_SHOW_DAILY)
+            if (json.has(KEY_SHOW_STATS)) showStats = json.getBoolean(KEY_SHOW_STATS)
+            if (json.has(KEY_SHOW_SUN)) showSun = json.getBoolean(KEY_SHOW_SUN)
         } catch (e: Exception) {
             // Malformed input from the launcher shouldn't wipe working settings.
             Log.e(TAG, "Error importing preferences", e)
