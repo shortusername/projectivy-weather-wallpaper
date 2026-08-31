@@ -38,6 +38,23 @@
     <string name="background_local">Your photos on this device</string>
     <string name="background_stock">Stock photos (Unsplash)</string>
     <string name="background_radar">Live precipitation radar</string>
+    <string name="background_pack">Community wallpaper pack</string>
+
+    <string name="setting_pack_title">Wallpaper pack</string>
+    <string name="setting_pack_refresh_title">Refresh pack list</string>
+    <string name="setting_pack_refresh_desc">Check for new community packs</string>
+    <string name="pack_none_selected">None selected</string>
+    <string name="pack_none_available">No packs yet — refresh the list</string>
+    <string name="pack_unknown">Unavailable (%1$s)</string>
+    <string name="pack_kind_static">Still images</string>
+    <string name="pack_kind_lottie">Animated — keeps the weather readout</string>
+    <string name="pack_kind_video">Video — no weather readout</string>
+
+    <string name="toast_pick_a_pack">Choose a wallpaper pack below</string>
+    <string name="toast_pack_refreshing">Checking for packs…</string>
+    <string name="toast_pack_refreshed">Pack list updated</string>
+    <string name="toast_pack_refresh_failed">Couldn\'t reach the pack list</string>
+    <string name="toast_video_no_overlay">Video packs can\'t show the weather readout</string>
 
     <string name="setting_unsplash_title">Unsplash access key</string>
     <string name="unsplash_unset">Not set — required for stock photos</string>
