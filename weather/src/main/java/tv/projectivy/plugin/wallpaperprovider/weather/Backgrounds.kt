@@ -36,6 +36,7 @@ object Backgrounds {
     private const val UA = "ProjectivyWeatherWallpaper/1.1 (+https://github.com/)"
 
     const val SOURCE_SCENE = "scene"
+    const val SOURCE_PACK = "pack"
     const val SOURCE_GRADIENT = "gradient"
     const val SOURCE_LOCAL = "local"
     const val SOURCE_STOCK = "stock"
@@ -53,6 +54,7 @@ object Backgrounds {
         height: Int
     ): Pair<Bitmap, String?>? = try {
         when (source) {
+            SOURCE_PACK -> packImage(context, c, width, height)
             SOURCE_LOCAL -> localPhoto(context, c, width, height)?.let { it to null }
             SOURCE_STOCK -> stockPhoto(c, width, height)
             SOURCE_RADAR -> radarMap(width, height)?.let {
@@ -63,6 +65,26 @@ object Backgrounds {
     } catch (e: Exception) {
         Log.w(TAG, "Background source '$source' failed: ${e.message}")
         null
+    }
+
+    // ----------------------------------------------------------------- pack
+
+    /**
+     * Static image from the selected community pack. Animated packs never reach
+     * here — the service handles those via LottieComposer.
+     */
+    private fun packImage(
+        context: Context,
+        c: OpenMeteoClient.Conditions,
+        width: Int,
+        height: Int
+    ): Pair<Bitmap, String?>? {
+        val id = PreferencesManager.selectedPack
+        if (id.isBlank()) return null
+        val pack = PackManager.findPack(context, id) ?: return null
+        val file = PackManager.resolveAsset(context, pack, c) ?: return null
+        val bitmap = decodeScaled(file.readBytes(), width, height) ?: return null
+        return bitmap to "${pack.name} by ${pack.author} · ${pack.license}"
     }
 
     // ---------------------------------------------------------------- local

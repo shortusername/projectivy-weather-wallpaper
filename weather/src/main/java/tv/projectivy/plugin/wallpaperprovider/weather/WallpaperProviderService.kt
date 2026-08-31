@@ -38,6 +38,10 @@ class WallpaperProviderService : Service() {
             val conditions = currentConditions() ?: return emptyList()
 
             return try {
+                // An animated pack is rendered by the launcher, not by us, so the
+                // panel gets embedded into the animation instead of composited.
+                animatedWallpaper(conditions)?.let { return listOf(it) }
+
                 val file = WeatherRenderer.render(
                     this@WallpaperProviderService,
                     conditions,
@@ -90,6 +94,59 @@ class WallpaperProviderService : Service() {
         }
         // On failure we leave the flag unset and retry next time, falling back
         // to the built-in default coordinates in the meantime.
+    }
+
+    /**
+     * Builds a LOTTIE or VIDEO wallpaper when the selected pack is animated.
+     * Returns null for static packs and on any failure, so the caller falls
+     * through to the normal composited PNG.
+     */
+    private fun animatedWallpaper(c: OpenMeteoClient.Conditions): Wallpaper? {
+        if (PreferencesManager.backgroundSource != Backgrounds.SOURCE_PACK) return null
+        val id = PreferencesManager.selectedPack
+        if (id.isBlank()) return null
+
+        val pack = PackManager.findPack(this, id) ?: return null
+        if (pack.kind == PackManager.KIND_STATIC) return null
+
+        val asset = PackManager.resolveAsset(this, pack, c) ?: return null
+        val credit = "${pack.name} by ${pack.author} · ${pack.license}"
+
+        return when (pack.kind) {
+            PackManager.KIND_LOTTIE -> {
+                val overlay = WeatherRenderer.renderOverlay(
+                    this, c, PreferencesManager.placeLabel
+                )
+                val composed = LottieComposer.compose(cacheDir, asset, overlay) ?: return null
+                wallpaperFor(composed, WallpaperType.LOTTIE, pack, credit)
+            }
+            PackManager.KIND_VIDEO -> {
+                // Video can't carry the panel — the launcher decodes it directly.
+                // Users who pick a video pack are trading the readout for motion.
+                wallpaperFor(asset, WallpaperType.VIDEO, pack, credit)
+            }
+            else -> null
+        }
+    }
+
+    private fun wallpaperFor(
+        file: java.io.File,
+        type: Int,
+        pack: PackManager.Pack,
+        credit: String
+    ): Wallpaper? = try {
+        val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+        grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        Wallpaper(
+            uri = uri.toString(),
+            type = type,
+            displayMode = WallpaperDisplayMode.CROP,
+            title = pack.name,
+            source = credit,
+            author = pack.author
+        )
+    } catch (e: Exception) {
+        null
     }
 
     private fun currentConditions(): OpenMeteoClient.Conditions? {

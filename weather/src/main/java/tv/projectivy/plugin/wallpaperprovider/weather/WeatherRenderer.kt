@@ -31,6 +31,7 @@ object WeatherRenderer {
     private const val SAFE_BOTTOM = 840f
 
     const val OUTPUT_NAME = "weather_wallpaper.png"
+    const val OVERLAY_NAME = "weather_overlay.png"
 
     private lateinit var light: Typeface
     private lateinit var medium: Typeface
@@ -53,6 +54,30 @@ object WeatherRenderer {
             this.alpha = alpha
             setShadowLayer(10f, 0f, 3f, Color.argb(140, 0, 0, 0))
         }
+
+    /**
+     * Panel only, on a transparent canvas.
+     *
+     * Used when the background is an animation the launcher renders itself: we
+     * can't composite onto that, so the panel is embedded into the Lottie as an
+     * image layer instead. See LottieComposer.
+     */
+    fun renderOverlay(context: Context, c: OpenMeteoClient.Conditions, placeLabel: String): File {
+        val bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        light = Typeface.create("sans-serif-light", Typeface.NORMAL)
+        medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+
+        // Scrim still needed: contributed art can be any brightness.
+        drawScrim(canvas, strong = true)
+        drawPanel(canvas, c, placeLabel, attribution = null)
+
+        val out = File(context.cacheDir, OVERLAY_NAME)
+        FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        return out
+    }
 
     fun render(context: Context, c: OpenMeteoClient.Conditions, placeLabel: String): File {
         val bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
@@ -90,6 +115,21 @@ object WeatherRenderer {
             drawScrim(canvas, strong = false)
         }
 
+        drawPanel(canvas, c, placeLabel, attribution)
+
+        val out = File(context.cacheDir, OUTPUT_NAME)
+        FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        return out
+    }
+
+    /** Everything above the background: readings, icon, optional panels. */
+    private fun drawPanel(
+        canvas: Canvas,
+        c: OpenMeteoClient.Conditions,
+        placeLabel: String,
+        attribution: String?
+    ) {
         var y = MARGIN + 60f
 
         canvas.drawText(placeLabel.uppercase(), MARGIN, y, paint(38f, medium, 205))
@@ -157,11 +197,6 @@ object WeatherRenderer {
         attribution?.let {
             canvas.drawText(it, MARGIN, H - 46f, paint(26f, light, 130))
         }
-
-        val out = File(context.cacheDir, OUTPUT_NAME)
-        FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        bitmap.recycle()
-        return out
     }
 
     // ------------------------------------------------------------------ lines

@@ -29,6 +29,7 @@ object PreferencesManager {
     const val KEY_SHOW_DAILY = "showDaily"
     const val KEY_SHOW_STATS = "showStats"
     const val KEY_SHOW_SUN = "showSun"
+    const val KEY_SELECTED_PACK = "selectedPack"
 
     // New York City, so a fresh install shows something rather than nothing.
     private const val DEFAULT_LAT = 40.7128
@@ -96,6 +97,11 @@ object PreferencesManager {
         get() = prefs.getBoolean(KEY_SHOW_SUN, false)
         set(v) = prefs.edit().putBoolean(KEY_SHOW_SUN, v).apply()
 
+    /** Pack id from packs/index.json. Empty means none selected. */
+    var selectedPack: String
+        get() = prefs.getString(KEY_SELECTED_PACK, null) ?: ""
+        set(v) = prefs.edit().putString(KEY_SELECTED_PACK, v).apply()
+
     var locationConfigured: Boolean
         get() = prefs.getBoolean(KEY_CONFIGURED, false)
         set(v) = prefs.edit().putBoolean(KEY_CONFIGURED, v).apply()
@@ -112,6 +118,7 @@ object PreferencesManager {
         put(KEY_SHOW_DAILY, showDaily)
         put(KEY_SHOW_STATS, showStats)
         put(KEY_SHOW_SUN, showSun)
+        put(KEY_SELECTED_PACK, selectedPack)
         // Deliberately not exported: an API key shouldn't travel in a settings
         // blob that Projectivy may back up or log.
     }.toString()
@@ -130,6 +137,7 @@ object PreferencesManager {
             if (json.has(KEY_SHOW_DAILY)) showDaily = json.getBoolean(KEY_SHOW_DAILY)
             if (json.has(KEY_SHOW_STATS)) showStats = json.getBoolean(KEY_SHOW_STATS)
             if (json.has(KEY_SHOW_SUN)) showSun = json.getBoolean(KEY_SHOW_SUN)
+            if (json.has(KEY_SELECTED_PACK)) selectedPack = json.getString(KEY_SELECTED_PACK)
         } catch (e: Exception) {
             // Malformed input from the launcher shouldn't wipe working settings.
             Log.e(TAG, "Error importing preferences", e)

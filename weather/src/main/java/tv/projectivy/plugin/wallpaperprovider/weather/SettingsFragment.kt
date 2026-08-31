@@ -32,6 +32,13 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val SUB_LOCAL = 101L
         private const val SUB_STOCK = 102L
         private const val SUB_RADAR = 103L
+        private const val SUB_PACK = 104L
+
+        private const val ACTION_ID_PACK = 13L
+        private const val ACTION_ID_PACK_REFRESH = 14L
+
+        /** Pack sub-actions start here, offset well clear of the fixed ids. */
+        private const val SUB_PACK_BASE = 1000L
     }
 
     override fun onCreateGuidance(savedInstanceState: Bundle?): Guidance {
@@ -108,7 +115,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
                         subAction(SUB_GRADIENT, R.string.background_gradient),
                         subAction(SUB_LOCAL, R.string.background_local),
                         subAction(SUB_STOCK, R.string.background_stock),
-                        subAction(SUB_RADAR, R.string.background_radar)
+                        subAction(SUB_RADAR, R.string.background_radar),
+                        subAction(SUB_PACK, R.string.background_pack)
                     )
                 )
                 .build()
@@ -134,6 +142,36 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .editDescription(zoom)
                 .descriptionEditable(true)
                 .descriptionEditInputType(InputType.TYPE_CLASS_NUMBER)
+                .build()
+        )
+
+        val cached = PackManager.cachedPacks(requireContext())
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_PACK)
+                .title(R.string.setting_pack_title)
+                .description(packLabel(cached))
+                .subActions(
+                    if (cached.isEmpty()) {
+                        listOf(subAction(SUB_PACK_BASE - 1, R.string.pack_none_available))
+                    } else {
+                        cached.mapIndexed { i, p ->
+                            GuidedAction.Builder(context)
+                                .id(SUB_PACK_BASE + i)
+                                .title("${p.name} · ${p.author}")
+                                .description(packKindLabel(p))
+                                .build()
+                        }
+                    }
+                )
+                .build()
+        )
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_PACK_REFRESH)
+                .title(R.string.setting_pack_refresh_title)
+                .description(R.string.setting_pack_refresh_desc)
                 .build()
         )
 
@@ -168,11 +206,33 @@ class SettingsFragment : GuidedStepSupportFragment() {
         GuidedAction.Builder(context).id(id).title(titleRes).build()
 
     override fun onSubGuidedActionClicked(action: GuidedAction): Boolean {
+        // Pack selection is a separate id range from the background picker.
+        if (action.id >= SUB_PACK_BASE) {
+            val packs = PackManager.cachedPacks(requireContext())
+            val index = (action.id - SUB_PACK_BASE).toInt()
+            packs.getOrNull(index)?.let { chosen ->
+                PreferencesManager.selectedPack = chosen.id
+                PreferencesManager.backgroundSource = Backgrounds.SOURCE_PACK
+
+                findActionById(ACTION_ID_PACK)?.description = packLabel(packs)
+                notifyActionChanged(findActionPositionById(ACTION_ID_PACK))
+                findActionById(ACTION_ID_BACKGROUND)?.description = backgroundLabel()
+                notifyActionChanged(findActionPositionById(ACTION_ID_BACKGROUND))
+
+                if (chosen.kind == PackManager.KIND_VIDEO) {
+                    toast(getString(R.string.toast_video_no_overlay))
+                }
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            return true
+        }
+
         val source = when (action.id) {
             SUB_GRADIENT -> Backgrounds.SOURCE_GRADIENT
             SUB_LOCAL -> Backgrounds.SOURCE_LOCAL
             SUB_STOCK -> Backgrounds.SOURCE_STOCK
             SUB_RADAR -> Backgrounds.SOURCE_RADAR
+            SUB_PACK -> Backgrounds.SOURCE_PACK
             else -> Backgrounds.SOURCE_SCENE
         }
         PreferencesManager.backgroundSource = source
@@ -190,6 +250,10 @@ class SettingsFragment : GuidedStepSupportFragment() {
             Backgrounds.SOURCE_STOCK ->
                 if (PreferencesManager.unsplashKey.isBlank()) {
                     toast(getString(R.string.toast_needs_unsplash_key))
+                }
+            Backgrounds.SOURCE_PACK ->
+                if (PreferencesManager.selectedPack.isBlank()) {
+                    toast(getString(R.string.toast_pick_a_pack))
                 }
         }
 
@@ -220,6 +284,26 @@ class SettingsFragment : GuidedStepSupportFragment() {
             ACTION_ID_SUN -> {
                 PreferencesManager.showSun = action.isChecked
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_PACK_REFRESH -> {
+                toast(getString(R.string.toast_pack_refreshing))
+                // Network must not run on the UI thread; rebuild the actions
+                // afterwards so the new pack list appears.
+                Thread {
+                    val ok = PackManager.refresh(requireContext())
+                    activity?.runOnUiThread {
+                        if (!isAdded) return@runOnUiThread
+                        toast(
+                            getString(
+                                if (ok) R.string.toast_pack_refreshed
+                                else R.string.toast_pack_refresh_failed
+                            )
+                        )
+                        val rebuilt = mutableListOf<GuidedAction>()
+                        onCreateActions(rebuilt, null)
+                        setActions(rebuilt)
+                    }
+                }.start()
             }
             ACTION_ID_REFRESH -> {
                 pushUpdate(WallpaperProviderContract.UpdateReason.DATA_CHANGED)
@@ -285,12 +369,29 @@ class SettingsFragment : GuidedStepSupportFragment() {
         return GuidedAction.ACTION_ID_CURRENT
     }
 
+    private fun packLabel(packs: List<PackManager.Pack>): String {
+        val id = PreferencesManager.selectedPack
+        if (id.isBlank()) return getString(R.string.pack_none_selected)
+        val match = packs.firstOrNull { it.id == id }
+        return match?.let { "${it.name} · ${it.author}" }
+            ?: getString(R.string.pack_unknown, id)
+    }
+
+    private fun packKindLabel(p: PackManager.Pack): String = getString(
+        when (p.kind) {
+            PackManager.KIND_LOTTIE -> R.string.pack_kind_lottie
+            PackManager.KIND_VIDEO -> R.string.pack_kind_video
+            else -> R.string.pack_kind_static
+        }
+    )
+
     private fun backgroundLabel(): String = getString(
         when (PreferencesManager.backgroundSource) {
             Backgrounds.SOURCE_LOCAL -> R.string.background_local
             Backgrounds.SOURCE_STOCK -> R.string.background_stock
             Backgrounds.SOURCE_RADAR -> R.string.background_radar
             Backgrounds.SOURCE_GRADIENT -> R.string.background_gradient
+            Backgrounds.SOURCE_PACK -> R.string.background_pack
             else -> R.string.background_scene
         }
     )
