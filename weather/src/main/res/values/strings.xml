@@ -21,6 +21,12 @@
     <string name="setting_sun_title">Show sun times</string>
     <string name="setting_sun_desc">Sunrise, sunset and daylight remaining</string>
 
+    <string name="setting_demo_title">Demo mode</string>
+    <string name="setting_demo_desc">Hide your location for screenshots and demos</string>
+    <string name="setting_demo_label_title">Demo label</string>
+    <string name="default_demo_label">Weather</string>
+    <string name="toast_demo_radar_warning">Radar still shows your area — the map itself identifies it</string>
+
     <string name="setting_refresh_title">Refresh now</string>
     <string name="setting_refresh_desc">Fetch current conditions and redraw</string>
 
