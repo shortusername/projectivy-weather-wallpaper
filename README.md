@@ -44,10 +44,27 @@ Optional, each toggled independently in settings:
 | Source | Needs | Notes |
 |---|---|---|
 | Illustrated scenes | nothing | Drawn in code, matched to conditions. Default. |
-| Live radar | nothing | [RainViewer](https://www.rainviewer.com/) over an OpenStreetMap basemap |
+| Live radar | nothing | [RainViewer](https://www.rainviewer.com/) precipitation tiles |
 | Your photos | files on the TV | Drop images in the plugin's folder, named by condition |
 | Community packs | nothing | Contributed images and animations, downloaded on demand |
 | Plain gradient | nothing | If you want it quiet |
+
+### Radar and basemaps
+
+Radar draws precipitation over a plain dark backdrop by default. No map ships
+with the plugin, deliberately: OpenStreetMap's [tile usage policy][osm-policy]
+forbids distributing an app that pulls from their community-funded servers, and
+blocked requests come back as an error tile rather than failing cleanly.
+
+If you want geography behind the radar, supply your own tile URL in settings
+under **Radar basemap tile URL**, using `{z}`, `{x}` and `{y}` placeholders:
+
+```
+https://tiles.example.com/dark/{z}/{x}/{y}.png?key=YOUR_KEY
+```
+
+Several providers offer free tiers that permit app use. Whichever you pick, put
+their required credit in **Basemap credit line** so it renders on screen.
 
 The illustrated scenes change with both conditions and time of day: star fields
 and a crescent moon at night, cloud banks when overcast, rain streaks, falling
@@ -72,9 +89,11 @@ Hides your location for screenshots: replaces the location name and removes the
 radar marker. The forecast still uses your real coordinates; only what's drawn
 changes.
 
-The radar background can't be fully anonymised this way, since the basemap shows
-your area regardless. Use the illustrated scenes or a pack for anything you post
-publicly, and consider turning off sun times, which narrow down your coordinates.
+If you've configured a basemap, radar can't be fully anonymised this way: the
+map itself shows your area whether or not the marker is drawn. With no basemap
+the risk is smaller, though the shape of a storm front is still a hint. For
+anything you post publicly, the illustrated scenes or a pack are safest, and
+consider turning off sun times, which narrow down your coordinates.
 
 ## How refresh works
 
@@ -109,6 +128,11 @@ adb logcat | grep -iE "projengmenu|SecurityException|OpenMeteoClient|PackManager
 **Pack list is empty.** Hit **Refresh pack list**. If it still fails, check that
 `INDEX_URL` in `PackManager.kt` points at this repo.
 
+**Radar shows tiles reading "not supported".** Your basemap provider is
+rejecting the requests. If the URL points at `tile.openstreetmap.org`, that is
+expected and won't be fixable — their policy doesn't permit app use. Clear the
+field to fall back to the plain backdrop, or switch providers.
+
 ## Built with AI assistance
 
 Most of the Kotlin in this repo was written by Claude, with me directing,
@@ -124,12 +148,13 @@ Built on [spocky's wallpaper provider template][template] (Apache 2.0), for
 [Projectivy Launcher][projectivy].
 
 Weather by [Open-Meteo](https://open-meteo.com/), radar by
-[RainViewer](https://www.rainviewer.com/), basemap © OpenStreetMap contributors,
-optional stock photos via [Unsplash](https://unsplash.com/). All credited on
-screen when in use.
+[RainViewer](https://www.rainviewer.com/), optional stock photos via
+[Unsplash](https://unsplash.com/). All credited on screen when in use. Any
+basemap you configure is yours to source and credit.
 
 Licensed under Apache 2.0. See [LICENSE](LICENSE).
 
 [releases]: ../../releases
 [template]: https://github.com/spocky/projectivy-plugin-wallpaper-provider
 [projectivy]: https://projectivylauncher.com/
+[osm-policy]: https://operations.osmfoundation.org/policies/tiles/

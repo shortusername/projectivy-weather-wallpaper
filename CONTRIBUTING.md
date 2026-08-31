@@ -144,6 +144,17 @@ building, and selecting your pack. Or drop assets straight into
 and use the "Your photos" background source, which follows the same naming
 convention.
 
+## If you're testing with the radar background
+
+Radar draws over a plain dark backdrop unless you've supplied your own basemap
+tile URL in settings. The plugin ships without one on purpose, because
+OpenStreetMap's [tile usage policy](https://operations.osmfoundation.org/policies/tiles/)
+forbids distributing an app that uses their servers. Tiles reading "not
+supported" mean your configured provider is rejecting the requests.
+
+This doesn't affect packs, which never touch the basemap. It's here because it
+confuses people testing the plugin for the first time.
+
 ## A note on Lottie
 
 Lottie packs are the most interesting and the most likely to surprise you. The
