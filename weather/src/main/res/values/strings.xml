@@ -3,7 +3,7 @@
     <string name="plugin_description">Shows current conditions and today\'s high/low as your launcher wallpaper. Data by Open-Meteo.</string>
 
     <!-- *** GENERATE YOUR OWN UUID V4: https://www.uuidgenerator.net/version4 *** -->
-    <string name="plugin_uuid">CHANGE_ME</string>
+    <string name="plugin_uuid">3b60f77e-c483-4af4-b4ea-493f1571e47d</string>
 
     <string name="projectivy_not_installed">Warning, this plugin requires Projectivy Launcher which does not seem to be installed.</string>
 
