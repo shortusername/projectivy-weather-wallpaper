@@ -62,7 +62,7 @@ object Backgrounds {
             SOURCE_PACK -> packImage(context, c, width, height)
             SOURCE_LOCAL -> localPhoto(context, c, width, height)?.let { it to null }
             SOURCE_STOCK -> stockPhoto(c, width, height)
-            SOURCE_RADAR -> radarMap(width, height)?.let {
+            SOURCE_RADAR -> radarMap(context, width, height)?.let {
                 it to "Radar: RainViewer · Map: © OpenStreetMap contributors"
             }
             else -> null
@@ -193,7 +193,7 @@ object Backgrounds {
      * template from a provider whose terms allow app use. Without one, radar
      * draws over a dark backdrop: less legible, but nobody's servers get abused.
      */
-    private fun radarMap(width: Int, height: Int): Bitmap? {
+    private fun radarMap(context: Context, width: Int, height: Int): Bitmap? {
         val zoom = PreferencesManager.radarZoom.coerceIn(4, 9)
         val lat = PreferencesManager.latitude
         val lon = PreferencesManager.longitude
@@ -206,10 +206,13 @@ object Backgrounds {
         if (latestPath.isBlank()) return null
 
         val basemapTemplate = PreferencesManager.basemapUrl.trim()
+        // A custom tile URL overrides the bundled vectors; otherwise we draw
+        // coastlines and borders ourselves from data shipped in the APK.
+        val useTiles = basemapTemplate.isNotBlank()
 
         val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
-        canvas.drawColor(Color.parseColor("#0F1620"))
+        canvas.drawColor(Color.parseColor("#0B121C"))
 
         val n = 1 shl zoom
         val tileSize = 256
@@ -247,6 +250,14 @@ object Backgrounds {
         val radarPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply { alpha = 235 }
 
         var drewAny = false
+
+        if (!useTiles) {
+            // Bundled vectors: no network, no key, no tile usage policy.
+            if (GeographyRenderer.draw(context, canvas, zoom, left, top, scale, width, height)) {
+                drewAny = true
+            }
+        }
+
         for (tx in tileXStart..tileXEnd) {
             for (ty in tileYStart..tileYEnd) {
                 val wrappedX = ((tx % n) + n) % n
@@ -260,7 +271,7 @@ object Backgrounds {
                     dstTop + (tileSize * scale).toFloat()
                 )
 
-                if (basemapTemplate.isNotBlank()) {
+                if (useTiles) {
                     val tileUrl = basemapTemplate
                         .replace("{z}", zoom.toString())
                         .replace("{x}", wrappedX.toString())
@@ -308,8 +319,12 @@ object Backgrounds {
     /** Credit line: RainViewer always, plus whatever the basemap needs. */
     private fun radarAttribution(): String {
         val extra = PreferencesManager.basemapAttribution.trim()
-        return if (extra.isEmpty()) "Radar: RainViewer"
-        else "Radar: RainViewer \u00B7 $extra"
+        return when {
+            extra.isNotEmpty() -> "Radar: RainViewer \u00B7 $extra"
+            PreferencesManager.basemapUrl.isBlank() ->
+                "Radar: RainViewer \u00B7 Map data: Natural Earth"
+            else -> "Radar: RainViewer"
+        }
     }
 
     // ---------------------------------------------------------------- shared
