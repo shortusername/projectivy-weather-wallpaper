@@ -46,14 +46,22 @@ object WeatherRenderer {
         }
         canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), bg)
 
-        // Scrim behind the text block so icon labels stay legible on any gradient.
+        // Scrim behind the text block so labels stay legible on any gradient.
+        // Drawn full-height with the fade completing at 50%: if the rect ended
+        // where the gradient ended, the rect edge itself would show as a seam.
         val scrim = Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, H.toFloat(),
-                Color.argb(140, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP
+                intArrayOf(
+                    Color.argb(140, 0, 0, 0),
+                    Color.argb(60, 0, 0, 0),
+                    Color.TRANSPARENT
+                ),
+                floatArrayOf(0f, 0.30f, 0.50f),
+                Shader.TileMode.CLAMP
             )
         }
-        canvas.drawRect(0f, 0f, W.toFloat(), H * 0.65f, scrim)
+        canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), scrim)
 
         val light = Typeface.create("sans-serif-light", Typeface.NORMAL)
         val medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
