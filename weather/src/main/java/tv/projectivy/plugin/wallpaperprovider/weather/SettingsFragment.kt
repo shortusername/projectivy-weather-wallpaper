@@ -17,6 +17,16 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_PLACE = 3L
         private const val ACTION_ID_UNITS = 4L
         private const val ACTION_ID_REFRESH = 5L
+        private const val ACTION_ID_BACKGROUND = 6L
+        private const val ACTION_ID_UNSPLASH = 7L
+        private const val ACTION_ID_RADAR_ZOOM = 8L
+
+        // Sub-action ids for the background picker, offset so they can't clash
+        // with the top-level ids above.
+        private const val SUB_GRADIENT = 100L
+        private const val SUB_LOCAL = 101L
+        private const val SUB_STOCK = 102L
+        private const val SUB_RADAR = 103L
     }
 
     override fun onCreateGuidance(savedInstanceState: Bundle?): Guidance {
@@ -84,11 +94,82 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
         actions.add(
             GuidedAction.Builder(context)
+                .id(ACTION_ID_BACKGROUND)
+                .title(R.string.setting_background_title)
+                .description(backgroundLabel())
+                .subActions(
+                    listOf(
+                        subAction(SUB_GRADIENT, R.string.background_gradient),
+                        subAction(SUB_LOCAL, R.string.background_local),
+                        subAction(SUB_STOCK, R.string.background_stock),
+                        subAction(SUB_RADAR, R.string.background_radar)
+                    )
+                )
+                .build()
+        )
+
+        val key = PreferencesManager.unsplashKey
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_UNSPLASH)
+                .title(R.string.setting_unsplash_title)
+                .description(if (key.isBlank()) getString(R.string.unsplash_unset) else maskKey(key))
+                .editDescription(key)
+                .descriptionEditable(true)
+                .build()
+        )
+
+        val zoom = PreferencesManager.radarZoom.toString()
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_RADAR_ZOOM)
+                .title(R.string.setting_radar_zoom_title)
+                .description(getString(R.string.setting_radar_zoom_desc, zoom))
+                .editDescription(zoom)
+                .descriptionEditable(true)
+                .descriptionEditInputType(InputType.TYPE_CLASS_NUMBER)
+                .build()
+        )
+
+        actions.add(
+            GuidedAction.Builder(context)
                 .id(ACTION_ID_REFRESH)
                 .title(R.string.setting_refresh_title)
                 .description(R.string.setting_refresh_desc)
                 .build()
         )
+    }
+
+    private fun subAction(id: Long, titleRes: Int): GuidedAction =
+        GuidedAction.Builder(context).id(id).title(titleRes).build()
+
+    override fun onSubGuidedActionClicked(action: GuidedAction): Boolean {
+        val source = when (action.id) {
+            SUB_LOCAL -> Backgrounds.SOURCE_LOCAL
+            SUB_STOCK -> Backgrounds.SOURCE_STOCK
+            SUB_RADAR -> Backgrounds.SOURCE_RADAR
+            else -> Backgrounds.SOURCE_GRADIENT
+        }
+        PreferencesManager.backgroundSource = source
+
+        findActionById(ACTION_ID_BACKGROUND)?.description = backgroundLabel()
+        notifyActionChanged(findActionPositionById(ACTION_ID_BACKGROUND))
+
+        when (source) {
+            Backgrounds.SOURCE_LOCAL -> toast(
+                getString(
+                    R.string.toast_local_folder,
+                    Backgrounds.localFolder(requireContext()).absolutePath
+                )
+            )
+            Backgrounds.SOURCE_STOCK ->
+                if (PreferencesManager.unsplashKey.isBlank()) {
+                    toast(getString(R.string.toast_needs_unsplash_key))
+                }
+        }
+
+        pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+        return true   // collapse the sub-action list
     }
 
     override fun onGuidedActionClicked(action: GuidedAction) {
@@ -132,6 +213,24 @@ class SettingsFragment : GuidedStepSupportFragment() {
                     action.description = parsed.toString()
                 }
             }
+            ACTION_ID_UNSPLASH -> {
+                PreferencesManager.unsplashKey = value
+                action.description =
+                    if (value.isBlank()) getString(R.string.unsplash_unset) else maskKey(value)
+                action.editDescription = value
+            }
+            ACTION_ID_RADAR_ZOOM -> {
+                val parsed = value.toIntOrNull()
+                if (parsed == null || parsed < 4 || parsed > 9) {
+                    toast(getString(R.string.toast_bad_zoom))
+                    action.editDescription = PreferencesManager.radarZoom.toString()
+                } else {
+                    PreferencesManager.radarZoom = parsed
+                }
+                action.description = getString(
+                    R.string.setting_radar_zoom_desc, PreferencesManager.radarZoom.toString()
+                )
+            }
             ACTION_ID_PLACE -> {
                 val label = value.ifEmpty { getString(R.string.default_place_label) }
                 PreferencesManager.placeLabel = label
@@ -144,6 +243,19 @@ class SettingsFragment : GuidedStepSupportFragment() {
         pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
         return GuidedAction.ACTION_ID_CURRENT
     }
+
+    private fun backgroundLabel(): String = getString(
+        when (PreferencesManager.backgroundSource) {
+            Backgrounds.SOURCE_LOCAL -> R.string.background_local
+            Backgrounds.SOURCE_STOCK -> R.string.background_stock
+            Backgrounds.SOURCE_RADAR -> R.string.background_radar
+            else -> R.string.background_gradient
+        }
+    )
+
+    /** Never show a full API key on a screen someone might be casting. */
+    private fun maskKey(key: String): String =
+        if (key.length <= 6) "••••••" else "••••••" + key.takeLast(4)
 
     private fun unitsLabel(): String = getString(
         if (PreferencesManager.useMetric) R.string.units_metric else R.string.units_imperial

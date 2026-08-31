@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Shader
 import android.graphics.Typeface
 import java.io.File
@@ -15,8 +16,9 @@ import kotlin.math.roundToInt
 /**
  * Draws the weather panel into a 1920x1080 bitmap and writes it to cacheDir.
  *
- * Layout is deliberately top-left and generously padded: Projectivy's own
- * clock/status sits top-right, and TV overscan eats the outer ~3% on some sets.
+ * Layout sits top-left and is generously padded: Projectivy's clock/status sits
+ * top-right, the app row occupies the bottom third, and TV overscan eats the
+ * outer few percent on some sets.
  */
 object WeatherRenderer {
 
@@ -40,60 +42,115 @@ object WeatherRenderer {
         val canvas = Canvas(bitmap)
 
         val bucket = OpenMeteoClient.bucket(c.weatherCode)
-        val (top, bottom) = gradientFor(bucket, c.isDay)
-        val bg = Paint().apply {
-            shader = LinearGradient(0f, 0f, W * 0.4f, H.toFloat(), top, bottom, Shader.TileMode.CLAMP)
-        }
-        canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), bg)
+        val source = PreferencesManager.backgroundSource
 
-        // Scrim behind the text block so labels stay legible on any gradient.
-        // Drawn full-height with the fade completing at 50%: if the rect ended
-        // where the gradient ended, the rect edge itself would show as a seam.
-        val scrim = Paint().apply {
-            shader = LinearGradient(
-                0f, 0f, 0f, H.toFloat(),
-                intArrayOf(
-                    Color.argb(140, 0, 0, 0),
-                    Color.argb(60, 0, 0, 0),
-                    Color.TRANSPARENT
-                ),
-                floatArrayOf(0f, 0.30f, 0.50f),
-                Shader.TileMode.CLAMP
-            )
+        // Try the configured image source; fall back to the gradient on any
+        // failure so a network blip never blanks the screen.
+        val resolved = Backgrounds.resolve(context, source, c, W, H)
+        var attribution: String? = null
+
+        if (resolved != null) {
+            canvas.drawBitmap(resolved.first, 0f, 0f, null)
+            resolved.first.recycle()
+            attribution = resolved.second
+            // Photos and maps need a stronger, wider scrim than a flat gradient.
+            drawScrim(canvas, strong = true)
+        } else {
+            val (top, bottom) = gradientFor(bucket, c.isDay)
+            val bg = Paint().apply {
+                shader = LinearGradient(
+                    0f, 0f, W * 0.4f, H.toFloat(), top, bottom, Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), bg)
+            drawScrim(canvas, strong = false)
         }
-        canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), scrim)
 
         val light = Typeface.create("sans-serif-light", Typeface.NORMAL)
         val medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
-        fun paint(size: Float, face: Typeface, alpha: Int = 255) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            textSize = size
-            typeface = face
-            color = Color.WHITE
-            this.alpha = alpha
-            setShadowLayer(8f, 0f, 3f, Color.argb(120, 0, 0, 0))
-        }
+        fun paint(size: Float, face: Typeface, alpha: Int = 255) =
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                textSize = size
+                typeface = face
+                color = Color.WHITE
+                this.alpha = alpha
+                setShadowLayer(10f, 0f, 3f, Color.argb(140, 0, 0, 0))
+            }
 
         var y = MARGIN + 60f
 
-        canvas.drawText(placeLabel.uppercase(), MARGIN, y, paint(38f, medium, 200))
+        canvas.drawText(placeLabel.uppercase(), MARGIN, y, paint(38f, medium, 205))
         y += 190f
 
         val temp = "${c.temperature.roundToInt()}${c.unitSuffix}"
-        canvas.drawText(temp, MARGIN, y, paint(220f, light))
-        y += 90f
+        val tempPaint = paint(220f, light)
+        canvas.drawText(temp, MARGIN, y, tempPaint)
 
-        canvas.drawText(OpenMeteoClient.describe(c.weatherCode), MARGIN, y, paint(64f, light, 235))
+        // Icon sits to the right of the temperature, vertically centred on it.
+        val tempWidth = tempPaint.measureText(temp)
+        WeatherIcons.draw(
+            canvas, c.weatherCode, c.isDay,
+            cx = MARGIN + tempWidth + 130f,
+            cy = y - 70f,
+            size = 175f
+        )
+
+        y += 90f
+        canvas.drawText(OpenMeteoClient.describe(c.weatherCode), MARGIN, y, paint(64f, light, 238))
         y += 80f
 
         val detail = "Feels like ${c.apparentTemperature.roundToInt()}°   ·   " +
                 "H ${c.high.roundToInt()}°  L ${c.low.roundToInt()}°   ·   " +
                 "Wind ${c.windSpeed.roundToInt()}"
-        canvas.drawText(detail, MARGIN, y, paint(40f, light, 190))
+        canvas.drawText(detail, MARGIN, y, paint(40f, light, 195))
+
+        // Attribution, bottom-left above the app row, small and unobtrusive.
+        attribution?.let {
+            canvas.drawText(it, MARGIN, H - 60f, paint(26f, light, 130))
+        }
 
         val out = File(context.cacheDir, OUTPUT_NAME)
         FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()
         return out
+    }
+
+    /**
+     * Full-height scrim. Drawn across the whole canvas on purpose: an earlier
+     * version stopped the rect at 65% height while its gradient was still
+     * faintly opaque there, and the rect's own edge showed as a hard seam.
+     */
+    private fun drawScrim(canvas: Canvas, strong: Boolean) {
+        val topAlpha = if (strong) 190 else 140
+        val midAlpha = if (strong) 95 else 60
+        val midStop = if (strong) 0.38f else 0.30f
+        val endStop = if (strong) 0.68f else 0.50f
+
+        val scrim = Paint().apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, H.toFloat(),
+                intArrayOf(
+                    Color.argb(topAlpha, 0, 0, 0),
+                    Color.argb(midAlpha, 0, 0, 0),
+                    Color.TRANSPARENT
+                ),
+                floatArrayOf(0f, midStop, endStop),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), scrim)
+
+        if (strong) {
+            // Horizontal falloff as well, so the right side of a photo stays
+            // visible while the text side keeps its contrast.
+            val side = Paint().apply {
+                shader = LinearGradient(
+                    0f, 0f, W * 0.62f, 0f,
+                    Color.argb(120, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP
+                )
+            }
+            canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), side)
+        }
     }
 }
