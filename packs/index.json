@@ -16,6 +16,16 @@
         "storm": "https://cdn.jsdelivr.net/gh/USER/REPO@main/packs/example-photographic/storm.jpg",
         "default": "https://cdn.jsdelivr.net/gh/USER/REPO@main/packs/example-photographic/default.jpg"
       }
+    },
+    {
+      "id": "test-pack",
+      "name": "Test Pack",
+      "author": "shortusername",
+      "license": "CC0-1.0",
+      "kind": "static",
+      "assets": {
+        "default": "https://cdn.jsdelivr.net/gh/shortusername/projectivy-weather-wallpaper@main/packs/test-pack/default.jpg"
+      }
     }
   ]
 }
