@@ -12,6 +12,15 @@
     <string name="setting_longitude_title">Longitude</string>
     <string name="setting_place_title">Location name</string>
     <string name="setting_units_title">Use metric units</string>
+    <string name="setting_hourly_title">Show hourly forecast</string>
+    <string name="setting_hourly_desc">Next 6 hours with temperature and rain chance</string>
+    <string name="setting_daily_title">Show daily forecast</string>
+    <string name="setting_daily_desc">Next 5 days with highs and lows</string>
+    <string name="setting_stats_title">Show extra stats</string>
+    <string name="setting_stats_desc">Humidity, UV, dew point, visibility, pressure</string>
+    <string name="setting_sun_title">Show sun times</string>
+    <string name="setting_sun_desc">Sunrise, sunset and daylight remaining</string>
+
     <string name="setting_refresh_title">Refresh now</string>
     <string name="setting_refresh_desc">Fetch current conditions and redraw</string>
 
