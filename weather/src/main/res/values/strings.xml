@@ -21,6 +21,12 @@
     <string name="setting_sun_title">Show sun times</string>
     <string name="setting_sun_desc">Sunrise, sunset and daylight remaining</string>
 
+    <string name="setting_basemap_title">Radar basemap tile URL</string>
+    <string name="basemap_unset">None \u2014 radar draws on a plain backdrop</string>
+    <string name="setting_basemap_attr_title">Basemap credit line</string>
+    <string name="basemap_attr_unset">Not set</string>
+    <string name="toast_osm_not_permitted">OpenStreetMap\'s tile policy doesn\'t allow app use \u2014 requests will be blocked</string>
+
     <string name="setting_demo_title">Demo mode</string>
     <string name="setting_demo_desc">Hide your location for screenshots and demos</string>
     <string name="setting_demo_label_title">Demo label</string>
