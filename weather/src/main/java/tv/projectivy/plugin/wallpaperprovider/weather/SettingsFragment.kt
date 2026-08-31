@@ -23,6 +23,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
         // Sub-action ids for the background picker, offset so they can't clash
         // with the top-level ids above.
+        private const val SUB_SCENE = 99L
         private const val SUB_GRADIENT = 100L
         private const val SUB_LOCAL = 101L
         private const val SUB_STOCK = 102L
@@ -99,6 +100,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .description(backgroundLabel())
                 .subActions(
                     listOf(
+                        subAction(SUB_SCENE, R.string.background_scene),
                         subAction(SUB_GRADIENT, R.string.background_gradient),
                         subAction(SUB_LOCAL, R.string.background_local),
                         subAction(SUB_STOCK, R.string.background_stock),
@@ -145,10 +147,11 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
     override fun onSubGuidedActionClicked(action: GuidedAction): Boolean {
         val source = when (action.id) {
+            SUB_GRADIENT -> Backgrounds.SOURCE_GRADIENT
             SUB_LOCAL -> Backgrounds.SOURCE_LOCAL
             SUB_STOCK -> Backgrounds.SOURCE_STOCK
             SUB_RADAR -> Backgrounds.SOURCE_RADAR
-            else -> Backgrounds.SOURCE_GRADIENT
+            else -> Backgrounds.SOURCE_SCENE
         }
         PreferencesManager.backgroundSource = source
 
@@ -249,7 +252,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
             Backgrounds.SOURCE_LOCAL -> R.string.background_local
             Backgrounds.SOURCE_STOCK -> R.string.background_stock
             Backgrounds.SOURCE_RADAR -> R.string.background_radar
-            else -> R.string.background_gradient
+            Backgrounds.SOURCE_GRADIENT -> R.string.background_gradient
+            else -> R.string.background_scene
         }
     )
 

@@ -35,6 +35,7 @@ object Backgrounds {
     private const val TIMEOUT_MS = 10_000
     private const val UA = "ProjectivyWeatherWallpaper/1.1 (+https://github.com/)"
 
+    const val SOURCE_SCENE = "scene"
     const val SOURCE_GRADIENT = "gradient"
     const val SOURCE_LOCAL = "local"
     const val SOURCE_STOCK = "stock"

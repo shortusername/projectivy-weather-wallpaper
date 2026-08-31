@@ -61,7 +61,7 @@ object PreferencesManager {
      */
     /** One of Backgrounds.SOURCE_* — gradient, local, stock or radar. */
     var backgroundSource: String
-        get() = prefs.getString(KEY_BACKGROUND, null) ?: Backgrounds.SOURCE_GRADIENT
+        get() = prefs.getString(KEY_BACKGROUND, null) ?: Backgrounds.SOURCE_SCENE
         set(v) = prefs.edit().putString(KEY_BACKGROUND, v).apply()
 
     /** Unsplash Access Key. Empty means the stock source is unavailable. */

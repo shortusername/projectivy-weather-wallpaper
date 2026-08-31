@@ -46,7 +46,11 @@ object WeatherRenderer {
 
         // Try the configured image source; fall back to the gradient on any
         // failure so a network blip never blanks the screen.
-        val resolved = Backgrounds.resolve(context, source, c, W, H)
+        val resolved = if (source == Backgrounds.SOURCE_SCENE || source == Backgrounds.SOURCE_GRADIENT) {
+            null
+        } else {
+            Backgrounds.resolve(context, source, c, W, H)
+        }
         var attribution: String? = null
 
         if (resolved != null) {
@@ -55,7 +59,7 @@ object WeatherRenderer {
             attribution = resolved.second
             // Photos and maps need a stronger, wider scrim than a flat gradient.
             drawScrim(canvas, strong = true)
-        } else {
+        } else if (source == Backgrounds.SOURCE_GRADIENT) {
             val (top, bottom) = gradientFor(bucket, c.isDay)
             val bg = Paint().apply {
                 shader = LinearGradient(
@@ -63,6 +67,10 @@ object WeatherRenderer {
                 )
             }
             canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), bg)
+            drawScrim(canvas, strong = false)
+        } else {
+            // Default: procedural scene for the current condition.
+            SceneBackgrounds.draw(canvas, W, H, c)
             drawScrim(canvas, strong = false)
         }
 
