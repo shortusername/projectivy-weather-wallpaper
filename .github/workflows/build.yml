@@ -13,14 +13,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
 
       - name: Make gradlew executable
         run: chmod +x gradlew
@@ -28,16 +28,32 @@ jobs:
       - name: Build debug APK
         run: ./gradlew :weather:assembleDebug --no-daemon
 
+      # Tagged builds get the tag; branch builds get version + short SHA, so
+      # every artifact is identifiable once it's sitting in a Downloads folder.
+      - name: Name the APK
+        id: name
+        run: |
+          VERSION=$(grep -E '^versionName' gradle/libs.versions.toml | cut -d'"' -f2)
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            NAME="weather-wallpaper-${GITHUB_REF_NAME}.apk"
+          else
+            NAME="weather-wallpaper-v${VERSION}-${GITHUB_SHA::7}.apk"
+          fi
+          SRC=$(find weather/build/outputs/apk/debug -name '*.apk' | head -n1)
+          cp "$SRC" "$NAME"
+          echo "apk=$NAME" >> "$GITHUB_OUTPUT"
+          echo "Built $NAME"
+
       - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
-          name: weather-wallpaper-debug
-          path: weather/build/outputs/apk/debug/*.apk
+          name: ${{ steps.name.outputs.apk }}
+          path: ${{ steps.name.outputs.apk }}
           if-no-files-found: error
 
       - name: Attach APK to release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: weather/build/outputs/apk/debug/*.apk
+          files: ${{ steps.name.outputs.apk }}
           generate_release_notes: true
