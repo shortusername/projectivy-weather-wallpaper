@@ -5,7 +5,7 @@ compileSdk = "37"
 minSdk = "23"
 targetSdk = "37"
 versionCode = "8"
-versionName = "1.6
+versionName = "1.6"
 
 # Kotlin
 kotlin = "2.3.21"  # https://github.com/JetBrains/kotlin/releases
