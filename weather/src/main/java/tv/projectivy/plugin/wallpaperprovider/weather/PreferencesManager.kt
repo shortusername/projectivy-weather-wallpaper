@@ -30,6 +30,8 @@ object PreferencesManager {
     const val KEY_SHOW_STATS = "showStats"
     const val KEY_SHOW_SUN = "showSun"
     const val KEY_SELECTED_PACK = "selectedPack"
+    const val KEY_DEMO_MODE = "demoMode"
+    const val KEY_DEMO_LABEL = "demoLabel"
 
     // New York City, so a fresh install shows something rather than nothing.
     private const val DEFAULT_LAT = 40.7128
@@ -102,6 +104,26 @@ object PreferencesManager {
         get() = prefs.getString(KEY_SELECTED_PACK, null) ?: ""
         set(v) = prefs.edit().putString(KEY_SELECTED_PACK, v).apply()
 
+    /**
+     * Hides identifying details for screenshots and demos. Does not change which
+     * forecast is fetched — only what is drawn.
+     */
+    var demoMode: Boolean
+        get() = prefs.getBoolean(KEY_DEMO_MODE, false)
+        set(v) = prefs.edit().putBoolean(KEY_DEMO_MODE, v).apply()
+
+    var demoLabel: String
+        get() = prefs.getString(KEY_DEMO_LABEL, null) ?: "Weather"
+        set(v) = prefs.edit().putString(KEY_DEMO_LABEL, v).apply()
+
+    /**
+     * The label the wallpaper should actually draw. Use this rather than
+     * placeLabel anywhere user-visible, so demo mode can't be bypassed by a
+     * caller that forgot to check it.
+     */
+    val displayLabel: String
+        get() = if (demoMode) demoLabel else placeLabel
+
     var locationConfigured: Boolean
         get() = prefs.getBoolean(KEY_CONFIGURED, false)
         set(v) = prefs.edit().putBoolean(KEY_CONFIGURED, v).apply()
@@ -119,6 +141,8 @@ object PreferencesManager {
         put(KEY_SHOW_STATS, showStats)
         put(KEY_SHOW_SUN, showSun)
         put(KEY_SELECTED_PACK, selectedPack)
+        put(KEY_DEMO_MODE, demoMode)
+        put(KEY_DEMO_LABEL, demoLabel)
         // Deliberately not exported: an API key shouldn't travel in a settings
         // blob that Projectivy may back up or log.
     }.toString()
@@ -138,6 +162,8 @@ object PreferencesManager {
             if (json.has(KEY_SHOW_STATS)) showStats = json.getBoolean(KEY_SHOW_STATS)
             if (json.has(KEY_SHOW_SUN)) showSun = json.getBoolean(KEY_SHOW_SUN)
             if (json.has(KEY_SELECTED_PACK)) selectedPack = json.getString(KEY_SELECTED_PACK)
+            if (json.has(KEY_DEMO_MODE)) demoMode = json.getBoolean(KEY_DEMO_MODE)
+            if (json.has(KEY_DEMO_LABEL)) demoLabel = json.getString(KEY_DEMO_LABEL)
         } catch (e: Exception) {
             // Malformed input from the launcher shouldn't wipe working settings.
             Log.e(TAG, "Error importing preferences", e)

@@ -36,6 +36,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
         private const val ACTION_ID_PACK = 13L
         private const val ACTION_ID_PACK_REFRESH = 14L
+        private const val ACTION_ID_DEMO = 15L
+        private const val ACTION_ID_DEMO_LABEL = 16L
 
         /** Pack sub-actions start here, offset well clear of the fixed ids. */
         private const val SUB_PACK_BASE = 1000L
@@ -184,6 +186,20 @@ class SettingsFragment : GuidedStepSupportFragment() {
         actions.add(checkbox(ACTION_ID_SUN, R.string.setting_sun_title,
             R.string.setting_sun_desc, PreferencesManager.showSun))
 
+        actions.add(checkbox(ACTION_ID_DEMO, R.string.setting_demo_title,
+            R.string.setting_demo_desc, PreferencesManager.demoMode))
+
+        val demoLabel = PreferencesManager.demoLabel
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_DEMO_LABEL)
+                .title(R.string.setting_demo_label_title)
+                .description(demoLabel)
+                .editDescription(demoLabel)
+                .descriptionEditable(true)
+                .build()
+        )
+
         actions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_REFRESH)
@@ -305,6 +321,15 @@ class SettingsFragment : GuidedStepSupportFragment() {
                     }
                 }.start()
             }
+            ACTION_ID_DEMO -> {
+                PreferencesManager.demoMode = action.isChecked
+                if (action.isChecked &&
+                    PreferencesManager.backgroundSource == Backgrounds.SOURCE_RADAR
+                ) {
+                    toast(getString(R.string.toast_demo_radar_warning))
+                }
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
             ACTION_ID_REFRESH -> {
                 pushUpdate(WallpaperProviderContract.UpdateReason.DATA_CHANGED)
                 toast(getString(R.string.toast_refresh_requested))
@@ -355,6 +380,12 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 action.description = getString(
                     R.string.setting_radar_zoom_desc, PreferencesManager.radarZoom.toString()
                 )
+            }
+            ACTION_ID_DEMO_LABEL -> {
+                val label = value.ifEmpty { getString(R.string.default_demo_label) }
+                PreferencesManager.demoLabel = label
+                action.description = label
+                action.editDescription = label
             }
             ACTION_ID_PLACE -> {
                 val label = value.ifEmpty { getString(R.string.default_place_label) }

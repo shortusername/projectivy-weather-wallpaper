@@ -270,15 +270,18 @@ object Backgrounds {
             return null
         }
 
-        // Marker for the configured location.
-        val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeWidth = 4f
-            color = Color.argb(200, 255, 255, 255)
+        // Marker for the configured location. Suppressed in demo mode, though
+        // note the basemap itself still identifies the area.
+        if (!PreferencesManager.demoMode) {
+            val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+            val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 4f
+                color = Color.argb(200, 255, 255, 255)
+            }
+            canvas.drawCircle(width / 2f, height / 2f, 7f, dot)
+            canvas.drawCircle(width / 2f, height / 2f, 18f, ring)
         }
-        canvas.drawCircle(width / 2f, height / 2f, 7f, dot)
-        canvas.drawCircle(width / 2f, height / 2f, 18f, ring)
 
         return out
     }

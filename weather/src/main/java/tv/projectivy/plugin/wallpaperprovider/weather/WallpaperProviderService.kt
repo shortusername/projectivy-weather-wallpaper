@@ -45,7 +45,7 @@ class WallpaperProviderService : Service() {
                 val file = WeatherRenderer.render(
                     this@WallpaperProviderService,
                     conditions,
-                    PreferencesManager.placeLabel
+                    PreferencesManager.displayLabel
                 )
 
                 val uri = FileProvider.getUriForFile(
@@ -115,7 +115,7 @@ class WallpaperProviderService : Service() {
         return when (pack.kind) {
             PackManager.KIND_LOTTIE -> {
                 val overlay = WeatherRenderer.renderOverlay(
-                    this, c, PreferencesManager.placeLabel
+                    this, c, PreferencesManager.displayLabel
                 )
                 val composed = LottieComposer.compose(cacheDir, asset, overlay) ?: return null
                 wallpaperFor(composed, WallpaperType.LOTTIE, pack, credit)
