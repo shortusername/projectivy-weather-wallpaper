@@ -1,133 +1,135 @@
-# Projectivy Weather Wallpaper
+# Weather Wallpaper for Projectivy
 
-A weather panel for Projectivy Launcher, built as a wallpaper provider plugin —
-the launcher's only public extension point. Weather data from Open-Meteo: no API
-key, no account.
+A wallpaper provider plugin that turns your Projectivy Launcher home screen into
+a weather display. Current conditions, optional forecast panels, and backgrounds
+that react to the weather.
 
-This is a complete, ready-to-build Gradle project. You don't need Android
-Studio, a JDK, or adb on your machine.
+Weather data from [Open-Meteo](https://open-meteo.com/). No API key, no account,
+no tracking.
 
-## Build the APK
+<!-- Add 2-3 screenshots here. Use demo mode and an illustrated scene or pack;
+     the radar background reveals your location even with the marker hidden. -->
 
-1. Create a new repository on GitHub (private is fine).
-2. Upload the contents of this folder — **Add file → Upload files**, then drag
-   everything in. Keep the folder structure.
-3. Go to the **Actions** tab. If prompted, click **I understand my workflows,
-   enable them**.
-4. **Build APK** in the left sidebar → **Run workflow** → **Run workflow**.
-5. Wait ~4 minutes. Open the finished run, and download the
-   `weather-wallpaper-debug` artifact from the Artifacts section at the bottom.
-6. Unzip it. Inside is `weather-debug.apk`.
+## Install
 
-To get a permanent download URL instead, create a release tagged `v1.0`; the
-workflow attaches the APK to it automatically. Useful for step 2 below.
+**Easiest:** download the APK from the [latest release][releases], side-load it,
+then in Projectivy go to **Settings → Appearance → Wallpaper → Launcher
+wallpaper → Plugins → Weather Wallpaper**.
 
-The APK is debug-signed on purpose — side-loading needs no release keystore, and
-it keeps the workflow secret-free so it runs on a fresh repo with no setup.
+No computer? Install **Downloader** by AFTVnews on the TV and type the release
+APK's URL.
 
-## Install it on the TV
+**Or build it yourself** — recommended, and it takes about two minutes with no
+local toolchain. Fork the repo, go to **Actions → Build APK → Run workflow**,
+and download the artifact when it finishes. The APK in releases is debug-signed,
+so building it yourself means not having to trust a stranger's binary.
 
-**No computer needed.** Install **Downloader** by AFTVnews from the Play Store
-on the TV and type the URL of your release APK. Allow installs from unknown
-sources when prompted. A URL shortener saves a lot of remote-typing.
+On first run the plugin estimates your location from your IP so it works
+immediately. Correct it in settings via the gear icon beside the plugin name.
 
-**Or adb:** `adb connect <TV_IP>:5555 && adb install -r weather-debug.apk`
-(enable ADB debugging under Settings → System → Developer options first).
+## What it shows
 
-**Or USB:** copy the APK to a stick and open it with any file manager.
+Always: temperature, conditions, feels-like, today's high and low, and wind with
+direction.
 
-## Turn it on
+Optional, each toggled independently in settings:
 
-1. **Projectivy settings** — long-press home, or the gear icon on the home screen
-2. **Appearance → Wallpaper → Launcher wallpaper**
-3. Scroll to **Plugins** → **Weather Wallpaper**
+- **Hourly** — next 6 hours with temperature, icon and rain chance
+- **Daily** — next 5 days with highs and lows
+- **Extra stats** — humidity, UV index, dew point, visibility, pressure
+- **Sun times** — sunrise, sunset, daylight remaining
 
-That's it. On first run the plugin derives an approximate location from your
-public IP, so the panel appears without configuring anything.
+## Backgrounds
 
-To correct the location or switch to Celsius, highlight the plugin and press the
-**gear icon** beside its name. Anything set there overrides the IP guess
-permanently. Coordinates come from latlong.net or a Google Maps URL.
+| Source | Needs | Notes |
+|---|---|---|
+| Illustrated scenes | nothing | Drawn in code, matched to conditions. Default. |
+| Live radar | nothing | [RainViewer](https://www.rainviewer.com/) over an OpenStreetMap basemap |
+| Your photos | files on the TV | Drop images in the plugin's folder, named by condition |
+| Community packs | nothing | Contributed images and animations, downloaded on demand |
+| Plain gradient | nothing | If you want it quiet |
 
-Typing signed decimals with a remote is unpleasant, so settings also accept
-intent extras:
+The illustrated scenes change with both conditions and time of day: star fields
+and a crescent moon at night, cloud banks when overcast, rain streaks, falling
+snow, lightning in storms. Randomness is seeded per day, so a scene holds steady
+across refreshes but differs tomorrow.
 
-```bash
-adb shell am start -n tv.projectivy.plugin.wallpaperprovider.weather/.SettingsActivity \
-  --es latitude "41.157" --es longitude "-73.862" \
-  --es placeLabel "Home" --ez useMetric false --ez close true
-```
+## Contribute a wallpaper pack
 
-## What's already configured
+**No code required.** A pack is images (or a Lottie animation) plus one entry in
+`packs/index.json`. Open a pull request, CI validates it, and it goes live
+without an app release.
 
-| Thing | Value |
-|---|---|
-| `appId` | `tv.projectivy.plugin.wallpaperprovider.weather` |
-| `plugin_uuid` | Pre-generated, unique to this project |
-| `updateMode` | `1` (TIME_ELAPSED) |
-| `itemsCacheDurationMillis` | 900000 (15 min) |
+Animated Lottie packs keep the weather readout — the panel is injected into your
+animation as an image layer, leaving your timing and easing untouched.
 
-Nothing needs editing before the first build.
+See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the format, canvas safe zones,
+size limits, and licensing rules.
 
-## How refresh behaves
+## Demo mode
 
-Three limits stack. `itemsCacheDurationMillis` (15 min) governs how long the
-launcher reuses our last response; `MIN_FETCH_INTERVAL_MS` (10 min) caps actual
-Open-Meteo calls; Projectivy's own rotation interval is irrelevant here because
-we return a single wallpaper with nothing to cycle through. Expect updates about
-every 15 minutes. There's a **Refresh now** action in settings for immediate.
+Hides your location for screenshots: replaces the location name and removes the
+radar marker. The forecast still uses your real coordinates; only what's drawn
+changes.
 
-On a failed fetch the service reuses the last good reading rather than blanking
-the screen.
+The radar background can't be fully anonymised this way, since the basemap shows
+your area regardless. Use the illustrated scenes or a pack for anything you post
+publicly, and consider turning off sun times, which narrow down your coordinates.
 
-## Project layout
+## How refresh works
 
-| Path | Role |
-|---|---|
-| `weather/…/WallpaperProviderService.kt` | AIDL stub; renders and returns a `content://` URI |
-| `weather/…/WeatherRenderer.kt` | Canvas compositing, 1920×1080 PNG into `cacheDir` |
-| `weather/…/OpenMeteoClient.kt` | HTTP + WMO weather-code mapping |
-| `weather/…/IpLocationClient.kt` | One-time approximate location |
-| `weather/…/PreferencesManager.kt` | Settings, JSON export/import |
-| `weather/…/Settings{Activity,Fragment}.kt` | Leanback settings screens |
-| `api/` | spocky's AIDL contract — **do not modify** |
-| `.github/workflows/build.yml` | Cloud build |
+Three limits stack:
 
-## Two things that will bite you if you modify it
+| Layer | Value | Controls |
+|---|---|---|
+| `itemsCacheDurationMillis` | 15 min | How long the launcher reuses the last response |
+| `MIN_FETCH_INTERVAL_MS` | 10 min | Floor on actual Open-Meteo calls |
+| Pack index cache | 24 hours | How often the pack list is re-checked |
 
-**The URI handoff.** The launcher reads the image from another process, so a
-bare `file://` path fails on anything modern. Hence the FileProvider, the
-explicit `grantUriPermission()` to `com.spocky.projengmenu`, and the `<queries>`
-manifest entry.
+Expect the reading to update roughly every 15 minutes. Projectivy's own wallpaper
+rotation interval doesn't apply, since the plugin returns a single wallpaper with
+nothing to cycle through. There's a **Refresh now** action in settings.
 
-**`updateMode`.** `CARD_FOCUSED` (4) fires roughly once a second during home
-screen navigation. Subscribing would re-render a bitmap that often.
+A failed fetch reuses the last good reading rather than blanking the screen.
 
 ## Troubleshooting
 
-**Build fails.** Open the failed Actions run and read the red step. Compile
-errors name a file and line.
+**Plugin isn't in the wallpaper list.** Force-stop Projectivy and reopen; it
+caches the plugin list at startup.
 
-**Plugin missing from the wallpaper list.** Force-stop Projectivy and reopen —
-it caches the plugin list at startup.
-
-**Black or unchanged wallpaper.** Almost always the URI grant:
+**Background is black or won't change.** Usually a URI permission problem:
 
 ```bash
-adb logcat | grep -iE "projengmenu|SecurityException|OpenMeteoClient|IpLocation"
+adb logcat | grep -iE "projengmenu|SecurityException|OpenMeteoClient|PackManager"
 ```
 
-**Panel cut off at the edges.** TV overscan — raise `MARGIN` in
+**Panel is cut off at the screen edges.** TV overscan. Raise `MARGIN` in
 `WeatherRenderer.kt`.
 
-## Privacy
+**Pack list is empty.** Hit **Refresh pack list**. If it still fails, check that
+`INDEX_URL` in `PackManager.kt` points at this repo.
 
-First run calls ipapi.co, which sees the device's public IP. Set
-`AUTO_LOCATE_ENABLED = false` in `IpLocationClient.kt` to disable it and require
-manual setup. Weather requests go to Open-Meteo with coordinates only.
+## Built with AI assistance
 
-## Licensing
+Most of the Kotlin in this repo was written by Claude, with me directing,
+testing and debugging on real hardware. I'm not an Android developer.
 
-Built on spocky's `projectivy-plugin-wallpaper-provider` template, Apache 2.0 —
-see `LICENSE`. Open-Meteo's free tier is non-commercial and asks for
-attribution, which the `Wallpaper` object's `author` and `source` fields carry.
+Practical implications: I can read and explain the code, but I'd be slow on a
+deep bug. It's tested on one device. Build from source if you'd rather not trust
+a debug-signed APK from a stranger. Issues are welcome and I'll do what I can.
+
+## Credits and licence
+
+Built on [spocky's wallpaper provider template][template] (Apache 2.0), for
+[Projectivy Launcher][projectivy].
+
+Weather by [Open-Meteo](https://open-meteo.com/), radar by
+[RainViewer](https://www.rainviewer.com/), basemap © OpenStreetMap contributors,
+optional stock photos via [Unsplash](https://unsplash.com/). All credited on
+screen when in use.
+
+Licensed under Apache 2.0. See [LICENSE](LICENSE).
+
+[releases]: ../../releases
+[template]: https://github.com/spocky/projectivy-plugin-wallpaper-provider
+[projectivy]: https://projectivylauncher.com/
