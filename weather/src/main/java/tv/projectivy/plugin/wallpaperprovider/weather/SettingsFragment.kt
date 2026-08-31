@@ -38,6 +38,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_PACK_REFRESH = 14L
         private const val ACTION_ID_DEMO = 15L
         private const val ACTION_ID_DEMO_LABEL = 16L
+        private const val ACTION_ID_BASEMAP = 17L
+        private const val ACTION_ID_BASEMAP_ATTR = 18L
 
         /** Pack sub-actions start here, offset well clear of the fixed ids. */
         private const val SUB_PACK_BASE = 1000L
@@ -185,6 +187,33 @@ class SettingsFragment : GuidedStepSupportFragment() {
             R.string.setting_stats_desc, PreferencesManager.showStats))
         actions.add(checkbox(ACTION_ID_SUN, R.string.setting_sun_title,
             R.string.setting_sun_desc, PreferencesManager.showSun))
+
+        val basemap = PreferencesManager.basemapUrl
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_BASEMAP)
+                .title(R.string.setting_basemap_title)
+                .description(
+                    if (basemap.isBlank()) getString(R.string.basemap_unset) else basemap
+                )
+                .editDescription(basemap)
+                .descriptionEditable(true)
+                .build()
+        )
+
+        val basemapAttr = PreferencesManager.basemapAttribution
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_BASEMAP_ATTR)
+                .title(R.string.setting_basemap_attr_title)
+                .description(
+                    if (basemapAttr.isBlank()) getString(R.string.basemap_attr_unset)
+                    else basemapAttr
+                )
+                .editDescription(basemapAttr)
+                .descriptionEditable(true)
+                .build()
+        )
 
         actions.add(checkbox(ACTION_ID_DEMO, R.string.setting_demo_title,
             R.string.setting_demo_desc, PreferencesManager.demoMode))
@@ -380,6 +409,21 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 action.description = getString(
                     R.string.setting_radar_zoom_desc, PreferencesManager.radarZoom.toString()
                 )
+            }
+            ACTION_ID_BASEMAP -> {
+                PreferencesManager.basemapUrl = value
+                action.description =
+                    if (value.isBlank()) getString(R.string.basemap_unset) else value
+                action.editDescription = value
+                if (value.contains("tile.openstreetmap.org")) {
+                    toast(getString(R.string.toast_osm_not_permitted))
+                }
+            }
+            ACTION_ID_BASEMAP_ATTR -> {
+                PreferencesManager.basemapAttribution = value
+                action.description =
+                    if (value.isBlank()) getString(R.string.basemap_attr_unset) else value
+                action.editDescription = value
             }
             ACTION_ID_DEMO_LABEL -> {
                 val label = value.ifEmpty { getString(R.string.default_demo_label) }

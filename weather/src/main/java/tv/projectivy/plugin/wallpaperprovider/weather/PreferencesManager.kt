@@ -32,6 +32,8 @@ object PreferencesManager {
     const val KEY_SELECTED_PACK = "selectedPack"
     const val KEY_DEMO_MODE = "demoMode"
     const val KEY_DEMO_LABEL = "demoLabel"
+    const val KEY_BASEMAP_URL = "basemapUrl"
+    const val KEY_BASEMAP_ATTRIBUTION = "basemapAttribution"
 
     // New York City, so a fresh install shows something rather than nothing.
     private const val DEFAULT_LAT = 40.7128
@@ -105,6 +107,22 @@ object PreferencesManager {
         set(v) = prefs.edit().putString(KEY_SELECTED_PACK, v).apply()
 
     /**
+     * Tile URL template for the radar basemap, with {z}/{x}/{y} placeholders.
+     *
+     * Empty by default and intentionally so: no basemap ships with the app,
+     * because OpenStreetMap's tile policy forbids distributing an app that
+     * uses their servers. Supply a provider whose terms permit app use.
+     */
+    var basemapUrl: String
+        get() = prefs.getString(KEY_BASEMAP_URL, null) ?: ""
+        set(v) = prefs.edit().putString(KEY_BASEMAP_URL, v).apply()
+
+    /** Credit line your tile provider requires, drawn under the panel. */
+    var basemapAttribution: String
+        get() = prefs.getString(KEY_BASEMAP_ATTRIBUTION, null) ?: ""
+        set(v) = prefs.edit().putString(KEY_BASEMAP_ATTRIBUTION, v).apply()
+
+    /**
      * Hides identifying details for screenshots and demos. Does not change which
      * forecast is fetched — only what is drawn.
      */
@@ -143,6 +161,8 @@ object PreferencesManager {
         put(KEY_SELECTED_PACK, selectedPack)
         put(KEY_DEMO_MODE, demoMode)
         put(KEY_DEMO_LABEL, demoLabel)
+        put(KEY_BASEMAP_URL, basemapUrl)
+        put(KEY_BASEMAP_ATTRIBUTION, basemapAttribution)
         // Deliberately not exported: an API key shouldn't travel in a settings
         // blob that Projectivy may back up or log.
     }.toString()
@@ -164,6 +184,8 @@ object PreferencesManager {
             if (json.has(KEY_SELECTED_PACK)) selectedPack = json.getString(KEY_SELECTED_PACK)
             if (json.has(KEY_DEMO_MODE)) demoMode = json.getBoolean(KEY_DEMO_MODE)
             if (json.has(KEY_DEMO_LABEL)) demoLabel = json.getString(KEY_DEMO_LABEL)
+            if (json.has(KEY_BASEMAP_URL)) basemapUrl = json.getString(KEY_BASEMAP_URL)
+            if (json.has(KEY_BASEMAP_ATTRIBUTION)) basemapAttribution = json.getString(KEY_BASEMAP_ATTRIBUTION)
         } catch (e: Exception) {
             // Malformed input from the launcher shouldn't wipe working settings.
             Log.e(TAG, "Error importing preferences", e)

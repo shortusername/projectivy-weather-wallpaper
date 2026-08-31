@@ -33,7 +33,12 @@ object Backgrounds {
 
     private const val TAG = "Backgrounds"
     private const val TIMEOUT_MS = 10_000
-    private const val UA = "ProjectivyWeatherWallpaper/1.1 (+https://github.com/)"
+    /**
+     * Must identify this specific application. Tile providers block generic or
+     * placeholder agents, and several require a contactable URL.
+     */
+    private const val UA =
+        "ProjectivyWeatherWallpaper/1.7 (+https://github.com/shortusername/projectivy-weather-wallpaper)"
 
     const val SOURCE_SCENE = "scene"
     const val SOURCE_PACK = "pack"
@@ -177,11 +182,16 @@ object Backgrounds {
     // ---------------------------------------------------------------- radar
 
     /**
-     * RainViewer precipitation tiles over a darkened OpenStreetMap basemap.
+     * RainViewer precipitation tiles, optionally over a user-supplied basemap.
      *
-     * RainViewer's public tiles need no key and are free for personal use.
-     * Radar tiles are transparent, so without a basemap you'd see rain blobs
-     * floating with no coastlines for reference.
+     * No basemap ships by default, deliberately. OpenStreetMap's tile usage
+     * policy forbids distributing an app that pulls from tile.openstreetmap.org
+     * without prior permission, and blocked requests come back as an error tile
+     * reading "not supported" rather than failing cleanly.
+     *
+     * Users who want geography behind the radar supply their own tile URL
+     * template from a provider whose terms allow app use. Without one, radar
+     * draws over a dark backdrop: less legible, but nobody's servers get abused.
      */
     private fun radarMap(width: Int, height: Int): Bitmap? {
         val zoom = PreferencesManager.radarZoom.coerceIn(4, 9)
@@ -194,6 +204,8 @@ object Backgrounds {
         if (past == null || past.length() == 0) return null
         val latestPath = past.getJSONObject(past.length() - 1).optString("path")
         if (latestPath.isBlank()) return null
+
+        val basemapTemplate = PreferencesManager.basemapUrl.trim()
 
         val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
@@ -248,19 +260,26 @@ object Backgrounds {
                     dstTop + (tileSize * scale).toFloat()
                 )
 
-                getBytes("https://tile.openstreetmap.org/$zoom/$wrappedX/$ty.png")
-                    ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
-                    ?.let { base ->
-                        canvas.drawBitmap(base, null, dst, basePaint)
-                        base.recycle()
-                        drewAny = true
-                    }
+                if (basemapTemplate.isNotBlank()) {
+                    val tileUrl = basemapTemplate
+                        .replace("{z}", zoom.toString())
+                        .replace("{x}", wrappedX.toString())
+                        .replace("{y}", ty.toString())
+                    getBytes(tileUrl)
+                        ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                        ?.let { base ->
+                            canvas.drawBitmap(base, null, dst, basePaint)
+                            base.recycle()
+                            drewAny = true
+                        }
+                }
 
                 getBytes("$host$latestPath/$tileSize/$zoom/$wrappedX/$ty/2/1_1.png")
                     ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
                     ?.let { radar ->
                         canvas.drawBitmap(radar, null, dst, radarPaint)
                         radar.recycle()
+                        drewAny = true
                     }
             }
         }
@@ -284,6 +303,13 @@ object Backgrounds {
         }
 
         return out
+    }
+
+    /** Credit line: RainViewer always, plus whatever the basemap needs. */
+    private fun radarAttribution(): String {
+        val extra = PreferencesManager.basemapAttribution.trim()
+        return if (extra.isEmpty()) "Radar: RainViewer"
+        else "Radar: RainViewer \u00B7 $extra"
     }
 
     // ---------------------------------------------------------------- shared
