@@ -28,7 +28,10 @@ object WeatherRenderer {
     private const val MARGIN = 120f
 
     /** Below this the app row starts; nothing should be drawn past it. */
-    private const val SAFE_BOTTOM = 840f
+    private const val SAFE_BOTTOM = 848f
+
+    /** Height of the hourly/daily strip panels, including the precip row. */
+    private const val STRIP_HEIGHT = 142f
 
     const val OUTPUT_NAME = "weather_wallpaper.png"
     const val OVERLAY_NAME = "weather_overlay.png"
@@ -159,19 +162,19 @@ object WeatherRenderer {
         val detail = "Feels like ${c.apparentTemperature.roundToInt()}\u00B0   \u00B7   " +
                 "H ${c.high.roundToInt()}\u00B0  L ${c.low.roundToInt()}\u00B0   \u00B7   $wind"
         canvas.drawText(detail, MARGIN, y, paint(40f, light, 195))
-        y += 58f
+        y += 52f
 
         if (PreferencesManager.showStats) {
             statsLine(c)?.let {
                 canvas.drawText(it, MARGIN, y, paint(34f, light, 165))
-                y += 50f
+                y += 46f
             }
         }
 
         if (PreferencesManager.showSun) {
             sunLine(c)?.let {
                 canvas.drawText(it, MARGIN, y, paint(34f, light, 165))
-                y += 50f
+                y += 46f
             }
         }
 
@@ -181,8 +184,16 @@ object WeatherRenderer {
         val showDaily = PreferencesManager.showDaily && c.daily.isNotEmpty()
 
         if (showHourly || showDaily) {
-            val stripTop = y + 22f
-            if (stripTop + 130f <= SAFE_BOTTOM) {
+            // Clamp upward to stay clear of the app row rather than dropping the
+            // strips entirely. The earlier version discarded them silently once
+            // the stats and sun lines had pushed y far enough down, which looked
+            // exactly like the toggles not working.
+            val desired = y + 22f
+            val highest = SAFE_BOTTOM - STRIP_HEIGHT
+            val stripTop = minOf(desired, highest)
+
+            // Only bail if there is genuinely no room left below the text.
+            if (stripTop >= y - 6f) {
                 var x = MARGIN
                 if (showHourly) {
                     x = hourlyStrip(canvas, c, x, stripTop)
