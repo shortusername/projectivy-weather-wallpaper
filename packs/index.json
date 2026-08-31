@@ -1,1 +1,21 @@
-
+{
+  "schemaVersion": 1,
+  "packs": [
+    {
+      "id": "example-photographic",
+      "name": "Example Photographic",
+      "author": "Your Name",
+      "license": "CC0-1.0",
+      "kind": "static",
+      "assets": {
+        "clear-day": "https://cdn.jsdelivr.net/gh/USER/REPO@main/packs/example-photographic/clear-day.jpg",
+        "clear-night": "https://cdn.jsdelivr.net/gh/USER/REPO@main/packs/example-photographic/clear-night.jpg",
+        "cloud": "https://cdn.jsdelivr.net/gh/USER/REPO@main/packs/example-photographic/cloud.jpg",
+        "rain": "https://cdn.jsdelivr.net/gh/USER/REPO@main/packs/example-photographic/rain.jpg",
+        "snow": "https://cdn.jsdelivr.net/gh/USER/REPO@main/packs/example-photographic/snow.jpg",
+        "storm": "https://cdn.jsdelivr.net/gh/USER/REPO@main/packs/example-photographic/storm.jpg",
+        "default": "https://cdn.jsdelivr.net/gh/USER/REPO@main/packs/example-photographic/default.jpg"
+      }
+    }
+  ]
+}
