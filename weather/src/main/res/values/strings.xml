@@ -3,7 +3,7 @@
     <string name="plugin_description">Shows current conditions and today\'s high/low as your launcher wallpaper. Data by Open-Meteo.</string>
 
     <!-- *** GENERATE YOUR OWN UUID V4: https://www.uuidgenerator.net/version4 *** -->
-    <string name="plugin_uuid">3b60f77e-c483-4af4-b4ea-493f1571e47d</string>
+    <string name="plugin_uuid">CHANGE_ME</string>
 
     <string name="projectivy_not_installed">Warning, this plugin requires Projectivy Launcher which does not seem to be installed.</string>
 
@@ -22,4 +22,20 @@
     <string name="toast_refresh_requested">Refresh requested</string>
     <string name="toast_bad_latitude">Latitude must be between -90 and 90</string>
     <string name="toast_bad_longitude">Longitude must be between -180 and 180</string>
+
+    <string name="setting_background_title">Background</string>
+    <string name="background_gradient">Colour gradient (offline)</string>
+    <string name="background_local">Your photos on this device</string>
+    <string name="background_stock">Stock photos (Unsplash)</string>
+    <string name="background_radar">Live precipitation radar</string>
+
+    <string name="setting_unsplash_title">Unsplash access key</string>
+    <string name="unsplash_unset">Not set — required for stock photos</string>
+
+    <string name="setting_radar_zoom_title">Radar zoom</string>
+    <string name="setting_radar_zoom_desc">%1$s (4 = regional, 9 = local)</string>
+
+    <string name="toast_local_folder">Put images in: %1$s</string>
+    <string name="toast_needs_unsplash_key">Add an Unsplash access key to use stock photos</string>
+    <string name="toast_bad_zoom">Radar zoom must be between 4 and 9</string>
 </resources>
