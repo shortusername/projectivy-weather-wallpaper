@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
+    <!-- Composited PNG and merged Lottie JSON -->
     <cache-path name="weather_cache" path="." />
+    <!-- Downloaded community pack assets -->
+    <files-path name="weather_packs" path="packs/" />
 </paths>
