@@ -21,6 +21,12 @@
     <string name="setting_sun_title">Show sun times</string>
     <string name="setting_sun_desc">Sunrise, sunset and daylight remaining</string>
 
+    <string name="setting_labels_title">Place names on radar</string>
+    <string name="labels_off">None</string>
+    <string name="labels_few">Few \u2014 major cities only</string>
+    <string name="labels_balanced">Balanced</string>
+    <string name="labels_many">Many \u2014 includes smaller towns</string>
+
     <string name="setting_basemap_title">Custom basemap tile URL</string>
     <string name="basemap_unset">Built-in map (coastlines and borders)</string>
     <string name="setting_basemap_attr_title">Basemap credit line</string>
@@ -71,10 +77,12 @@
     <string name="setting_unsplash_title">Unsplash access key</string>
     <string name="unsplash_unset">Not set — required for stock photos</string>
 
-    <string name="setting_radar_zoom_title">Radar zoom</string>
-    <string name="setting_radar_zoom_desc">%1$s (4 = regional, 9 = local)</string>
+    <string name="setting_radar_area_title">Radar area</string>
+    <string name="radar_area_wide">Wide \u2014 several states</string>
+    <string name="radar_area_regional">Regional \u2014 neighbouring states</string>
+    <string name="radar_area_state">State \u2014 your state and around it</string>
+    <string name="radar_area_local">Local \u2014 your metro area</string>
 
     <string name="toast_local_folder">Put images in: %1$s</string>
     <string name="toast_needs_unsplash_key">Add an Unsplash access key to use stock photos</string>
-    <string name="toast_bad_zoom">Radar zoom must be between 4 and 9</string>
 </resources>

@@ -30,7 +30,7 @@ object PackManager {
      * caching headers, and won't rate-limit a few thousand TVs checking in.
      */
     private const val INDEX_URL =
-            "https://cdn.jsdelivr.net/gh/shortusername/projectivy-weather-wallpaper@main/packs/index.json"
+        "https://cdn.jsdelivr.net/gh/shortusername/projectivy-weather-wallpaper@main/packs/index.json"
 
     private const val INDEX_CACHE = "packs_index.json"
     private const val INDEX_TTL_MS = 24 * 60 * 60 * 1000L

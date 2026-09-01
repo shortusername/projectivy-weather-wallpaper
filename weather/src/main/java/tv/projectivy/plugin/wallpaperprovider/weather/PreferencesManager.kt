@@ -32,6 +32,7 @@ object PreferencesManager {
     const val KEY_SELECTED_PACK = "selectedPack"
     const val KEY_DEMO_MODE = "demoMode"
     const val KEY_DEMO_LABEL = "demoLabel"
+    const val KEY_LABEL_DENSITY = "labelDensity"
     const val KEY_BASEMAP_URL = "basemapUrl"
     const val KEY_BASEMAP_ATTRIBUTION = "basemapAttribution"
 
@@ -78,9 +79,12 @@ object PreferencesManager {
         get() = prefs.getString(KEY_UNSPLASH, null) ?: ""
         set(v) = prefs.edit().putString(KEY_UNSPLASH, v).apply()
 
-    /** Radar zoom: 4 is regional, 9 is close to town level. */
+    /**
+     * Radar zoom, 4 (regional) to 7 (metro area). RainViewer's public tiles
+     * don't go beyond 7; higher values return a placeholder image.
+     */
     var radarZoom: Int
-        get() = prefs.getString(KEY_RADAR_ZOOM, null)?.toIntOrNull() ?: 7
+        get() = (prefs.getString(KEY_RADAR_ZOOM, null)?.toIntOrNull() ?: 6).coerceIn(4, 7)
         set(v) = prefs.edit().putString(KEY_RADAR_ZOOM, v.toString()).apply()
 
     // Optional panels. Hourly defaults on; the rest stay off so the panel starts
@@ -105,6 +109,16 @@ object PreferencesManager {
     var selectedPack: String
         get() = prefs.getString(KEY_SELECTED_PACK, null) ?: ""
         set(v) = prefs.edit().putString(KEY_SELECTED_PACK, v).apply()
+
+    const val LABELS_OFF = "off"
+    const val LABELS_FEW = "few"
+    const val LABELS_BALANCED = "balanced"
+    const val LABELS_MANY = "many"
+
+    /** How many place names the radar map shows. */
+    var labelDensity: String
+        get() = prefs.getString(KEY_LABEL_DENSITY, null) ?: LABELS_BALANCED
+        set(v) = prefs.edit().putString(KEY_LABEL_DENSITY, v).apply()
 
     /**
      * Tile URL template for the radar basemap, with {z}/{x}/{y} placeholders.
@@ -161,6 +175,7 @@ object PreferencesManager {
         put(KEY_SELECTED_PACK, selectedPack)
         put(KEY_DEMO_MODE, demoMode)
         put(KEY_DEMO_LABEL, demoLabel)
+        put(KEY_LABEL_DENSITY, labelDensity)
         put(KEY_BASEMAP_URL, basemapUrl)
         put(KEY_BASEMAP_ATTRIBUTION, basemapAttribution)
         // Deliberately not exported: an API key shouldn't travel in a settings
@@ -184,6 +199,7 @@ object PreferencesManager {
             if (json.has(KEY_SELECTED_PACK)) selectedPack = json.getString(KEY_SELECTED_PACK)
             if (json.has(KEY_DEMO_MODE)) demoMode = json.getBoolean(KEY_DEMO_MODE)
             if (json.has(KEY_DEMO_LABEL)) demoLabel = json.getString(KEY_DEMO_LABEL)
+            if (json.has(KEY_LABEL_DENSITY)) labelDensity = json.getString(KEY_LABEL_DENSITY)
             if (json.has(KEY_BASEMAP_URL)) basemapUrl = json.getString(KEY_BASEMAP_URL)
             if (json.has(KEY_BASEMAP_ATTRIBUTION)) basemapAttribution = json.getString(KEY_BASEMAP_ATTRIBUTION)
         } catch (e: Exception) {

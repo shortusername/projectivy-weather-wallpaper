@@ -3,6 +3,7 @@ package tv.projectivy.plugin.wallpaperprovider.weather
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorMatrix
@@ -10,6 +11,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import android.graphics.Shader
 import android.util.Log
 import org.json.JSONObject
 import java.io.File
@@ -194,7 +196,9 @@ object Backgrounds {
      * draws over a dark backdrop: less legible, but nobody's servers get abused.
      */
     private fun radarMap(context: Context, width: Int, height: Int): Bitmap? {
-        val zoom = PreferencesManager.radarZoom.coerceIn(4, 9)
+        // RainViewer's public tiles stop at zoom 7 — above that every request
+        // returns an identical "Zoom Level Not Supported" placeholder image.
+        val zoom = PreferencesManager.radarZoom.coerceIn(4, 7)
         val lat = PreferencesManager.latitude
         val lon = PreferencesManager.longitude
 
@@ -212,7 +216,9 @@ object Backgrounds {
 
         val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
-        canvas.drawColor(Color.parseColor("#0B121C"))
+        // GeographyRenderer paints its own water base; this only shows if the
+        // bundled vectors fail to load or a custom tile source is in use.
+        canvas.drawColor(Color.parseColor("#0A1420"))
 
         val n = 1 shl zoom
         val tileSize = 256
@@ -225,8 +231,10 @@ object Backgrounds {
         val scale = width / (3.0 * tileSize)
         val viewW = width / scale
         val viewH = height / scale
-        val left = cxWorld - viewW / 2.0
-        val top = cyWorld - viewH / 2.0
+        // Not centred: the panel occupies the upper left, so push the marker
+        // right and down into clear space.
+        val left = cxWorld - viewW * 0.62
+        val top = cyWorld - viewH * 0.54
 
         val tileXStart = floor(left / tileSize).toInt()
         val tileXEnd = floor((left + viewW) / tileSize).toInt()
@@ -247,7 +255,14 @@ object Backgrounds {
         val basePaint = Paint(Paint.FILTER_BITMAP_FLAG).apply {
             colorFilter = ColorMatrixColorFilter(darken)
         }
-        val radarPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply { alpha = 235 }
+        // Two passes: a blurred, low-alpha copy underneath gives precipitation a
+        // soft bloom, then the sharp copy on top keeps the detail. Reads much
+        // closer to broadcast weather graphics than a single flat overlay.
+        val radarGlow = Paint(Paint.FILTER_BITMAP_FLAG).apply {
+            alpha = 90
+            maskFilter = BlurMaskFilter(14f, BlurMaskFilter.Blur.NORMAL)
+        }
+        val radarPaint = Paint(Paint.FILTER_BITMAP_FLAG).apply { alpha = 225 }
 
         var drewAny = false
 
@@ -288,6 +303,10 @@ object Backgrounds {
                 getBytes("$host$latestPath/$tileSize/$zoom/$wrappedX/$ty/2/1_1.png")
                     ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
                     ?.let { radar ->
+                        val glowDst = RectF(
+                            dst.left - 3f, dst.top - 3f, dst.right + 3f, dst.bottom + 3f
+                        )
+                        canvas.drawBitmap(radar, null, glowDst, radarGlow)
                         canvas.drawBitmap(radar, null, dst, radarPaint)
                         radar.recycle()
                         drewAny = true
@@ -300,17 +319,36 @@ object Backgrounds {
             return null
         }
 
+        // Depth: darken the outer edges so the centre reads as the subject.
+        val vignette = Paint().apply {
+            shader = android.graphics.RadialGradient(
+                width / 2f, height / 2f, width * 0.72f,
+                intArrayOf(Color.TRANSPARENT, Color.argb(60, 0, 4, 10)),
+                floatArrayOf(0.5f, 1f),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), vignette)
+
         // Marker for the configured location. Suppressed in demo mode, though
         // note the basemap itself still identifies the area.
         if (!PreferencesManager.demoMode) {
+            val mx = (width * 0.62f)
+            val my = (height * 0.54f)
             val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+            val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = Color.argb(120, 0, 0, 0)
+            }
             val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
-                strokeWidth = 4f
-                color = Color.argb(200, 255, 255, 255)
+                strokeWidth = 3f
+                color = Color.argb(110, 255, 255, 255)
             }
-            canvas.drawCircle(width / 2f, height / 2f, 7f, dot)
-            canvas.drawCircle(width / 2f, height / 2f, 18f, ring)
+            canvas.drawCircle(mx, my, 11f, halo)
+            canvas.drawCircle(mx, my, 7f, dot)
+            canvas.drawCircle(mx, my, 19f, ring)
+            canvas.drawCircle(mx, my, 29f, Paint(ring).apply { alpha = 55 })
         }
 
         return out
@@ -322,7 +360,7 @@ object Backgrounds {
         return when {
             extra.isNotEmpty() -> "Radar: RainViewer \u00B7 $extra"
             PreferencesManager.basemapUrl.isBlank() ->
-                "Radar: RainViewer \u00B7 Map data: Natural Earth"
+                "Radar: RainViewer \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)"
             else -> "Radar: RainViewer"
         }
     }

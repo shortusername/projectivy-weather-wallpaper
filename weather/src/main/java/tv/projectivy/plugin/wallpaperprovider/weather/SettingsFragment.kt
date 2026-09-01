@@ -33,6 +33,17 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val SUB_STOCK = 102L
         private const val SUB_RADAR = 103L
         private const val SUB_PACK = 104L
+        private const val SUB_LBL_OFF = 110L
+        private const val SUB_LBL_FEW = 111L
+        private const val SUB_LBL_BAL = 112L
+        private const val SUB_LBL_MANY = 113L
+
+        private const val ACTION_ID_LABELS = 19L
+
+        private const val SUB_AREA_WIDE = 120L
+        private const val SUB_AREA_REGIONAL = 121L
+        private const val SUB_AREA_STATE = 122L
+        private const val SUB_AREA_LOCAL = 123L
 
         private const val ACTION_ID_PACK = 13L
         private const val ACTION_ID_PACK_REFRESH = 14L
@@ -137,15 +148,19 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        val zoom = PreferencesManager.radarZoom.toString()
         actions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_RADAR_ZOOM)
-                .title(R.string.setting_radar_zoom_title)
-                .description(getString(R.string.setting_radar_zoom_desc, zoom))
-                .editDescription(zoom)
-                .descriptionEditable(true)
-                .descriptionEditInputType(InputType.TYPE_CLASS_NUMBER)
+                .title(R.string.setting_radar_area_title)
+                .description(radarAreaLabel())
+                .subActions(
+                    listOf(
+                        subAction(SUB_AREA_WIDE, R.string.radar_area_wide),
+                        subAction(SUB_AREA_REGIONAL, R.string.radar_area_regional),
+                        subAction(SUB_AREA_STATE, R.string.radar_area_state),
+                        subAction(SUB_AREA_LOCAL, R.string.radar_area_local)
+                    )
+                )
                 .build()
         )
 
@@ -187,6 +202,22 @@ class SettingsFragment : GuidedStepSupportFragment() {
             R.string.setting_stats_desc, PreferencesManager.showStats))
         actions.add(checkbox(ACTION_ID_SUN, R.string.setting_sun_title,
             R.string.setting_sun_desc, PreferencesManager.showSun))
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_LABELS)
+                .title(R.string.setting_labels_title)
+                .description(labelDensityLabel())
+                .subActions(
+                    listOf(
+                        subAction(SUB_LBL_OFF, R.string.labels_off),
+                        subAction(SUB_LBL_FEW, R.string.labels_few),
+                        subAction(SUB_LBL_BAL, R.string.labels_balanced),
+                        subAction(SUB_LBL_MANY, R.string.labels_many)
+                    )
+                )
+                .build()
+        )
 
         val basemap = PreferencesManager.basemapUrl
         actions.add(
@@ -269,6 +300,32 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 }
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
+            return true
+        }
+
+        if (action.id in SUB_AREA_WIDE..SUB_AREA_LOCAL) {
+            PreferencesManager.radarZoom = when (action.id) {
+                SUB_AREA_WIDE -> 4
+                SUB_AREA_REGIONAL -> 5
+                SUB_AREA_STATE -> 6
+                else -> 7
+            }
+            findActionById(ACTION_ID_RADAR_ZOOM)?.description = radarAreaLabel()
+            notifyActionChanged(findActionPositionById(ACTION_ID_RADAR_ZOOM))
+            pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            return true
+        }
+
+        if (action.id in SUB_LBL_OFF..SUB_LBL_MANY) {
+            PreferencesManager.labelDensity = when (action.id) {
+                SUB_LBL_OFF -> PreferencesManager.LABELS_OFF
+                SUB_LBL_FEW -> PreferencesManager.LABELS_FEW
+                SUB_LBL_MANY -> PreferencesManager.LABELS_MANY
+                else -> PreferencesManager.LABELS_BALANCED
+            }
+            findActionById(ACTION_ID_LABELS)?.description = labelDensityLabel()
+            notifyActionChanged(findActionPositionById(ACTION_ID_LABELS))
+            pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             return true
         }
 
@@ -398,18 +455,6 @@ class SettingsFragment : GuidedStepSupportFragment() {
                     if (value.isBlank()) getString(R.string.unsplash_unset) else maskKey(value)
                 action.editDescription = value
             }
-            ACTION_ID_RADAR_ZOOM -> {
-                val parsed = value.toIntOrNull()
-                if (parsed == null || parsed < 4 || parsed > 9) {
-                    toast(getString(R.string.toast_bad_zoom))
-                    action.editDescription = PreferencesManager.radarZoom.toString()
-                } else {
-                    PreferencesManager.radarZoom = parsed
-                }
-                action.description = getString(
-                    R.string.setting_radar_zoom_desc, PreferencesManager.radarZoom.toString()
-                )
-            }
             ACTION_ID_BASEMAP -> {
                 PreferencesManager.basemapUrl = value
                 action.description =
@@ -443,6 +488,24 @@ class SettingsFragment : GuidedStepSupportFragment() {
         pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
         return GuidedAction.ACTION_ID_CURRENT
     }
+
+    private fun radarAreaLabel(): String = getString(
+        when (PreferencesManager.radarZoom) {
+            4 -> R.string.radar_area_wide
+            5 -> R.string.radar_area_regional
+            6 -> R.string.radar_area_state
+            else -> R.string.radar_area_local
+        }
+    )
+
+    private fun labelDensityLabel(): String = getString(
+        when (PreferencesManager.labelDensity) {
+            PreferencesManager.LABELS_OFF -> R.string.labels_off
+            PreferencesManager.LABELS_FEW -> R.string.labels_few
+            PreferencesManager.LABELS_MANY -> R.string.labels_many
+            else -> R.string.labels_balanced
+        }
+    )
 
     private fun packLabel(packs: List<PackManager.Pack>): String {
         val id = PreferencesManager.selectedPack
