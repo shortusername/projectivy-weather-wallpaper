@@ -213,13 +213,17 @@ object Backgrounds {
         width: Int,
         height: Int,
         phase: ThemeResolver.Phase,
-        includeRadar: Boolean = true
+        includeRadar: Boolean = true,
+        centre: Pair<Double, Double>? = null,
+        zoomOverride: Int? = null
     ): Bitmap? {
         // RainViewer's public tiles stop at zoom 7 — above that every request
         // returns an identical "Zoom Level Not Supported" placeholder image.
-        val zoom = PreferencesManager.radarZoom.coerceIn(4, 7)
-        val lat = PreferencesManager.latitude
-        val lon = PreferencesManager.longitude
+        // World events pass their own centre and a wider zoom; otherwise the
+        // active location and the user's area setting apply.
+        val zoom = (zoomOverride ?: PreferencesManager.radarZoom).coerceIn(3, 7)
+        val lat = centre?.first ?: PreferencesManager.currentLatitude
+        val lon = centre?.second ?: PreferencesManager.currentLongitude
 
         val maps = getJson("https://api.rainviewer.com/public/weather-maps.json") ?: return null
         val host = maps.optString("host", "https://tilecache.rainviewer.com")

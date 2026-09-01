@@ -142,7 +142,8 @@ class WallpaperProviderService : Service() {
         val pack = PackManager.findPack(this, id) ?: return null
         if (pack.kind == PackManager.KIND_STATIC) return null
 
-        val asset = PackManager.resolveAsset(this, pack, c) ?: return null
+        val phase = ThemeResolver.resolve(c)
+        val asset = PackManager.resolveAsset(this, pack, c, phase) ?: return null
         val credit = "${pack.name} by ${pack.author} · ${pack.license}"
 
         return when (pack.kind) {
