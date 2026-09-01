@@ -29,7 +29,8 @@ object SceneBackgrounds {
         canvas: Canvas,
         width: Int,
         height: Int,
-        c: OpenMeteoClient.Conditions
+        c: OpenMeteoClient.Conditions,
+        phase: ThemeResolver.Phase
     ) {
         val w = width.toFloat()
         val h = height.toFloat()
@@ -37,9 +38,16 @@ object SceneBackgrounds {
         val day = System.currentTimeMillis() / 86_400_000L
         val rng = Random(day * 31 + c.weatherCode)
 
+        val twilight = phase == ThemeResolver.Phase.DAWN || phase == ThemeResolver.Phase.DUSK
+        val isDay = phase.isDay
+
         when {
-            !c.isDay && bucket == "clear" -> clearNight(canvas, w, h, rng)
-            !c.isDay -> overcastNight(canvas, w, h, bucket, rng)
+            twilight && bucket == "clear" ->
+                clearTwilight(canvas, w, h, rng, phase == ThemeResolver.Phase.DAWN)
+            twilight ->
+                overcastTwilight(canvas, w, h, bucket, rng, phase == ThemeResolver.Phase.DAWN)
+            !isDay && bucket == "clear" -> clearNight(canvas, w, h, rng)
+            !isDay -> overcastNight(canvas, w, h, bucket, rng)
             bucket == "clear" -> clearDay(canvas, w, h, c.weatherCode)
             bucket == "cloud" -> cloudy(canvas, w, h, c.weatherCode, rng)
             bucket == "rain" -> rainy(canvas, w, h, rng)
@@ -136,6 +144,89 @@ object SceneBackgrounds {
             fillType = Path.FillType.EVEN_ODD
         }
         canvas.drawPath(crescent, moon)
+    }
+
+    /**
+     * Sunrise and sunset. Dawn runs cooler and pinker, dusk warmer and more
+     * orange, with the glow low on the horizon rather than high in the sky.
+     */
+    private fun clearTwilight(canvas: Canvas, w: Float, h: Float, rng: Random, dawn: Boolean) {
+        if (dawn) {
+            sky(
+                canvas, w, h,
+                Color.parseColor("#1A2340"),
+                Color.parseColor("#48456B"),
+                Color.parseColor("#9C6E7A"),
+                Color.parseColor("#E0A489")
+            )
+        } else {
+            sky(
+                canvas, w, h,
+                Color.parseColor("#16203C"),
+                Color.parseColor("#4A3560"),
+                Color.parseColor("#A85A64"),
+                Color.parseColor("#E89A62")
+            )
+        }
+
+        // A few stars survive twilight, fading toward the lit horizon.
+        val star = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+        repeat(70) {
+            val x = rng.nextFloat() * w
+            val yBias = rng.nextFloat() * rng.nextFloat()
+            val y = yBias * h * 0.5f
+            star.alpha = (30 + rng.nextInt(90) * (1f - yBias)).toInt().coerceIn(15, 160)
+            canvas.drawCircle(x, y, 1f + rng.nextFloat() * 1.8f, star)
+        }
+
+        val glowX = if (dawn) w * 0.80f else w * 0.74f
+        glow(canvas, glowX, h * 0.72f, w * 0.42f,
+            if (dawn) Color.argb(120, 255, 200, 170) else Color.argb(130, 255, 170, 110))
+        glow(canvas, glowX, h * 0.74f, w * 0.13f, Color.argb(170, 255, 226, 190))
+
+        // Underlit cloud bands: the giveaway that it's twilight and not day.
+        val band = Paint(Paint.ANTI_ALIAS_FLAG)
+        for (i in 0 until 4) {
+            val y = h * (0.30f + i * 0.11f)
+            band.color = Color.argb(
+                46 + i * 10,
+                if (dawn) 240 else 255,
+                if (dawn) 180 else 165,
+                if (dawn) 170 else 135
+            )
+            canvas.drawRoundRect(
+                RectF(w * (0.04f + i * 0.05f), y, w * (0.60f + i * 0.09f), y + h * 0.022f),
+                h * 0.012f, h * 0.012f, band
+            )
+        }
+    }
+
+    private fun overcastTwilight(
+        canvas: Canvas, w: Float, h: Float, bucket: String, rng: Random, dawn: Boolean
+    ) {
+        if (dawn) {
+            sky(
+                canvas, w, h,
+                Color.parseColor("#1E2438"),
+                Color.parseColor("#4A4657"),
+                Color.parseColor("#8A7A78")
+            )
+        } else {
+            sky(
+                canvas, w, h,
+                Color.parseColor("#1A1E33"),
+                Color.parseColor("#453C52"),
+                Color.parseColor("#7E6668")
+            )
+        }
+        glow(canvas, w * 0.76f, h * 0.74f, w * 0.34f,
+            if (dawn) Color.argb(80, 240, 190, 165) else Color.argb(90, 250, 165, 120))
+        cloudBank(canvas, w, h, Color.argb(80, 215, 190, 190), rng, layers = 4)
+        when (bucket) {
+            "rain" -> rainStreaks(canvas, w, h, rng, alpha = 95)
+            "snow" -> snowflakes(canvas, w, h, rng, alpha = 180)
+            "storm" -> lightning(canvas, w, h, rng)
+        }
     }
 
     private fun overcastNight(canvas: Canvas, w: Float, h: Float, bucket: String, rng: Random) {

@@ -3,6 +3,7 @@ package tv.projectivy.plugin.wallpaperprovider.weather
 import android.app.Service
 import android.content.Intent
 import android.os.IBinder
+import android.util.Log
 import androidx.core.content.FileProvider
 import tv.projectivy.plugin.wallpaperprovider.api.Event
 import tv.projectivy.plugin.wallpaperprovider.api.IWallpaperProviderService
@@ -20,12 +21,16 @@ class WallpaperProviderService : Service() {
         private const val ALERT_INTERVAL_MS = 5 * 60 * 1000L
         /** Frames in an animated radar loop. Seven spans ~2h of observations. */
         private const val RADAR_FRAME_COUNT = 7
+        /** World event list is re-fetched no more often than this. */
+        private const val WORLD_INTERVAL_MS = 30 * 60 * 1000L
     }
 
     private var lastFetchAt = 0L
     private var cached: OpenMeteoClient.Conditions? = null
     private var lastAlertAt = 0L
     private var cachedAlert: NwsAlertsClient.Alert? = null
+    private var lastWorldAt = 0L
+    private var cachedEvents: List<WorldEventsClient.Event> = emptyList()
 
     override fun onCreate() {
         super.onCreate()
@@ -43,6 +48,17 @@ class WallpaperProviderService : Service() {
 
             val conditions = currentConditions() ?: return emptyList()
 
+            // One counter for the whole refresh, incremented here rather than
+            // inside either feature: previously the world-watch path owned it
+            // and returned early when disabled, so it never advanced and
+            // location cycling lost its sense of time.
+            val refreshIndex = PreferencesManager.refreshCount + 1
+            PreferencesManager.refreshCount = refreshIndex
+
+            // Pick which saved location this refresh renders, before anything
+            // fetches or draws.
+            selectActiveLocation(refreshIndex)
+
             // Alerts are drawn by both render paths, so resolve before either.
             WeatherRenderer.currentAlert = currentAlert()
 
@@ -53,6 +69,10 @@ class WallpaperProviderService : Service() {
 
                 // Animated radar: same constraint, solved by embedding the frames.
                 animatedRadar(conditions)?.let { return listOf(it) }
+
+                // World weather watch takes over the whole frame when it's this
+                // refresh's turn, so it's resolved before the local render.
+                worldEventWallpaper(conditions, refreshIndex)?.let { return listOf(it) }
 
                 val file = WeatherRenderer.render(
                     this@WallpaperProviderService,
@@ -80,7 +100,8 @@ class WallpaperProviderService : Service() {
                         author = "Open-Meteo"
                     )
                 )
-            } catch (e: Exception) {
+            } catch (t: Throwable) {
+                Log.w("WeatherWallpaper", "getWallpapers failed: ${t.message}")
                 emptyList()
             }
         }
@@ -170,18 +191,19 @@ class WallpaperProviderService : Service() {
         if (PreferencesManager.backgroundSource != Backgrounds.SOURCE_RADAR) return null
 
         return try {
-            val baseMap = Backgrounds.radarBaseMap(this, 1920, 1080) ?: return null
+            val phase = ThemeResolver.resolve(c)
+            val baseMap = Backgrounds.radarBaseMap(this, 1920, 1080, phase) ?: return null
             val scene = WeatherRenderer.composeScene(
                 this, c, PreferencesManager.displayLabel, baseMap, WeatherRenderer.currentAlert
             )
             baseMap.recycle()
 
+            // Already-encoded WebP bytes, one frame decoded at a time upstream.
             val frames = Backgrounds.radarFrames(this, 1920, 1080, RADAR_FRAME_COUNT)
             if (frames.isEmpty()) { scene.recycle(); return null }
 
             val loop = RadarAnimator.build(cacheDir, scene, frames)
             scene.recycle()
-            frames.forEach { it.recycle() }
             if (loop == null) return null
 
             val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", loop)
@@ -195,7 +217,104 @@ class WallpaperProviderService : Service() {
                 source = "RainViewer",
                 author = "RainViewer"
             )
-        } catch (e: Exception) {
+        } catch (t: Throwable) {
+            // Throwable deliberately: an OutOfMemoryError here would otherwise
+            // escape the binder call and leave the wallpaper blank instead of
+            // falling back to the still render.
+            Log.w("WeatherWallpaper", "Animated radar failed: ${t.message}")
+            null
+        }
+    }
+
+    /**
+     * Sets the location for this refresh.
+     *
+     * With cycling off, or only one location saved, this is always the primary
+     * one. Otherwise it advances through the rotation. The chosen location is
+     * published on PreferencesManager so the renderers pick it up without
+     * every drawing call taking a location argument.
+     */
+    private fun selectActiveLocation(refreshIndex: Int) {
+        val rotation = PreferencesManager.locationRotation
+        val mode = PreferencesManager.cycleMode
+
+        if (mode == PreferencesManager.CYCLE_OFF || rotation.size < 2) {
+            PreferencesManager.activeLatitude = null
+            PreferencesManager.activeLongitude = null
+            PreferencesManager.activeLabel = null
+            return
+        }
+
+        // Alternate mode holds each location for two refreshes, so a 15-minute
+        // cycle doesn't move on before anyone has looked at it.
+        val step = if (mode == PreferencesManager.CYCLE_ALTERNATE) 2 else 1
+        if (refreshIndex % step != 0) return
+
+        val cursor = PreferencesManager.locationCursor % rotation.size
+        PreferencesManager.locationCursor = (cursor + 1) % rotation.size
+
+        val chosen = rotation[cursor]
+        PreferencesManager.activeLatitude = chosen.latitude
+        PreferencesManager.activeLongitude = chosen.longitude
+        PreferencesManager.activeLabel = chosen.label
+        // The forecast is location-specific, so force a refetch on a change.
+        lastFetchAt = 0L
+    }
+
+    /**
+     * A notable weather event elsewhere, on its turn in the rotation.
+     *
+     * Returns null whenever it isn't this refresh's turn, the feed is empty, or
+     * anything fails — the caller then renders local weather as normal. GDACS
+     * often lists only a handful of current weather events, so an empty feed is
+     * the expected case rather than an error.
+     */
+    private fun worldEventWallpaper(
+        c: OpenMeteoClient.Conditions,
+        refreshIndex: Int
+    ): Wallpaper? {
+        val mode = PreferencesManager.worldWatch
+        if (mode == PreferencesManager.WORLD_OFF) return null
+
+        val everyN = if (mode == PreferencesManager.WORLD_FREQUENT) 2 else 4
+        if (refreshIndex % everyN != 0) return null
+
+        return try {
+            val now = System.currentTimeMillis()
+            if (cachedEvents.isEmpty() || now - lastWorldAt > WORLD_INTERVAL_MS) {
+                cachedEvents = WorldEventsClient.fetch()
+                lastWorldAt = now
+            }
+            if (cachedEvents.isEmpty()) return null
+
+            // Advance the cursor so successive turns show different events.
+            val cursor = PreferencesManager.worldCursor % cachedEvents.size
+            PreferencesManager.worldCursor = (cursor + 1) % cachedEvents.size
+            val event = cachedEvents[cursor]
+
+            // Conditions at the event, not at home.
+            val eventConditions = OpenMeteoClient.fetch(
+                event.latitude, event.longitude, PreferencesManager.useMetric
+            )
+
+            val phase = ThemeResolver.resolve(eventConditions ?: c)
+            val file = WeatherRenderer.renderWorldEvent(
+                this, event, eventConditions, phase
+            )
+
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+            Wallpaper(
+                uri = uri.toString(),
+                type = WallpaperType.IMAGE,
+                displayMode = WallpaperDisplayMode.CROP,
+                title = "${event.name} \u00B7 ${event.countries}",
+                source = "GDACS",
+                author = "GDACS (UN/EC)"
+            )
+        } catch (t: Throwable) {
+            Log.w("WeatherWallpaper", "World event render failed: ${t.message}")
             null
         }
     }
@@ -206,7 +325,7 @@ class WallpaperProviderService : Service() {
         val now = System.currentTimeMillis()
         if (now - lastAlertAt > ALERT_INTERVAL_MS) {
             cachedAlert = NwsAlertsClient.fetch(
-                PreferencesManager.latitude, PreferencesManager.longitude
+                PreferencesManager.currentLatitude, PreferencesManager.currentLongitude
             ).firstOrNull()
             lastAlertAt = now
         }
@@ -219,8 +338,8 @@ class WallpaperProviderService : Service() {
         val stale = now - lastFetchAt > MIN_FETCH_INTERVAL_MS
         if (stale || cached == null) {
             OpenMeteoClient.fetch(
-                PreferencesManager.latitude,
-                PreferencesManager.longitude,
+                PreferencesManager.currentLatitude,
+                PreferencesManager.currentLongitude,
                 PreferencesManager.useMetric
             )?.let {
                 cached = it

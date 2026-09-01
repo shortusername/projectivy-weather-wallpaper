@@ -58,13 +58,14 @@ object Backgrounds {
         source: String,
         c: OpenMeteoClient.Conditions,
         width: Int,
-        height: Int
+        height: Int,
+        phase: ThemeResolver.Phase
     ): Pair<Bitmap, String?>? = try {
         when (source) {
-            SOURCE_PACK -> packImage(context, c, width, height)
-            SOURCE_LOCAL -> localPhoto(context, c, width, height)?.let { it to null }
-            SOURCE_STOCK -> stockPhoto(c, width, height)
-            SOURCE_RADAR -> radarMap(context, width, height, includeRadar = true)?.let {
+            SOURCE_PACK -> packImage(context, c, width, height, phase)
+            SOURCE_LOCAL -> localPhoto(context, c, width, height, phase)?.let { it to null }
+            SOURCE_STOCK -> stockPhoto(c, width, height, phase)
+            SOURCE_RADAR -> radarMap(context, width, height, phase, includeRadar = true)?.let {
                 it to "Radar: RainViewer · Map: © OpenStreetMap contributors"
             }
             else -> null
@@ -84,12 +85,13 @@ object Backgrounds {
         context: Context,
         c: OpenMeteoClient.Conditions,
         width: Int,
-        height: Int
+        height: Int,
+        phase: ThemeResolver.Phase
     ): Pair<Bitmap, String?>? {
         val id = PreferencesManager.selectedPack
         if (id.isBlank()) return null
         val pack = PackManager.findPack(context, id) ?: return null
-        val file = PackManager.resolveAsset(context, pack, c) ?: return null
+        val file = PackManager.resolveAsset(context, pack, c, phase) ?: return null
         val bitmap = decodeScaled(file.readBytes(), width, height) ?: return null
         return bitmap to "${pack.name} by ${pack.author} · ${pack.license}"
     }
@@ -105,7 +107,8 @@ object Backgrounds {
         context: Context,
         c: OpenMeteoClient.Conditions,
         width: Int,
-        height: Int
+        height: Int,
+        phase: ThemeResolver.Phase
     ): Bitmap? {
         val folder = localFolder(context)
         val images = folder.listFiles { f ->
@@ -114,11 +117,15 @@ object Backgrounds {
         if (images.isEmpty()) return null
 
         val bucket = OpenMeteoClient.bucket(c.weatherCode)
-        val timeTag = if (c.isDay) "day" else "night"
-        val matches = images.filter {
-            val n = it.name.lowercase()
-            n.contains(bucket) || n.contains(timeTag)
-        }
+        // Exact phase first, so a file named "dusk-*" wins over a "night-*" one.
+        val matches = images.filter { it.name.lowercase().contains(phase.key) }
+            .ifEmpty {
+                val coarse = if (phase.isDay) "day" else "night"
+                images.filter {
+                    val n = it.name.lowercase()
+                    n.contains(bucket) || n.contains(coarse)
+                }
+            }
         val pool = matches.ifEmpty { images }
 
         // Rotate through the pool over time rather than picking at random, so
@@ -141,13 +148,19 @@ object Backgrounds {
     private fun stockPhoto(
         c: OpenMeteoClient.Conditions,
         width: Int,
-        height: Int
+        height: Int,
+        phase: ThemeResolver.Phase
     ): Pair<Bitmap, String?>? {
         val key = PreferencesManager.unsplashKey.trim()
         if (key.isEmpty()) return null
 
         val query = when (OpenMeteoClient.bucket(c.weatherCode)) {
-            "clear" -> if (c.isDay) "blue sky landscape" else "starry night sky"
+            "clear" -> when (phase) {
+                ThemeResolver.Phase.DAY -> "blue sky landscape"
+                ThemeResolver.Phase.DAWN -> "sunrise landscape"
+                ThemeResolver.Phase.DUSK -> "sunset landscape"
+                ThemeResolver.Phase.NIGHT -> "starry night sky"
+            }
             "cloud" -> "overcast clouds landscape"
             "rain" -> "rainy landscape"
             "snow" -> "snowy landscape"
@@ -199,6 +212,7 @@ object Backgrounds {
         context: Context,
         width: Int,
         height: Int,
+        phase: ThemeResolver.Phase,
         includeRadar: Boolean = true
     ): Bitmap? {
         // RainViewer's public tiles stop at zoom 7 — above that every request
@@ -236,10 +250,13 @@ object Backgrounds {
         val scale = width / (3.0 * tileSize)
         val viewW = width / scale
         val viewH = height / scale
-        // Not centred: the panel occupies the upper left, so push the marker
-        // right and down into clear space.
-        val left = cxWorld - viewW * 0.62
-        val top = cyWorld - viewH * 0.54
+        // Local view: the panel occupies the upper left, so push the marker
+        // right and down into clear space. World events sit nearer the centre,
+        // since their caption strip runs along the bottom instead.
+        val fracX = if (centre != null) 0.55 else 0.62
+        val fracY = if (centre != null) 0.46 else 0.54
+        val left = cxWorld - viewW * fracX
+        val top = cyWorld - viewH * fracY
 
         val tileXStart = floor(left / tileSize).toInt()
         val tileXEnd = floor((left + viewW) / tileSize).toInt()
@@ -273,7 +290,9 @@ object Backgrounds {
 
         if (!useTiles) {
             // Bundled vectors: no network, no key, no tile usage policy.
-            if (GeographyRenderer.draw(context, canvas, zoom, left, top, scale, width, height)) {
+            if (GeographyRenderer.draw(
+                    context, canvas, zoom, left, top, scale, width, height, phase
+            )) {
                 drewAny = true
             }
         }
@@ -338,9 +357,9 @@ object Backgrounds {
 
         // Marker for the configured location. Suppressed in demo mode, though
         // note the basemap itself still identifies the area.
-        if (!PreferencesManager.demoMode) {
-            val mx = (width * 0.62f)
-            val my = (height * 0.54f)
+        if (!PreferencesManager.demoMode && centre == null) {
+            val mx = (width * fracX).toFloat()
+            val my = (height * fracY).toFloat()
             val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
             val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.FILL
@@ -373,9 +392,39 @@ object Backgrounds {
 
     // ------------------------------------------------------------ animation
 
+    /**
+     * Map centred on an arbitrary point, for World weather watch.
+     *
+     * Radar coverage outside the US, Europe and Japan is patchy, so this may
+     * well return a map with no precipitation on it at all. That's expected —
+     * the geography and the caption carry the view.
+     */
+    fun eventMap(
+        context: Context,
+        width: Int,
+        height: Int,
+        phase: ThemeResolver.Phase,
+        lat: Double,
+        lon: Double,
+        zoom: Int
+    ): Bitmap? = try {
+        radarMap(
+            context, width, height, phase,
+            includeRadar = true, centre = lat to lon, zoomOverride = zoom
+        )
+    } catch (t: Throwable) {
+        Log.w(TAG, "Event map failed: ${t.message}")
+        null
+    }
+
     /** The radar map with no precipitation drawn: basemap, borders, labels. */
-    fun radarBaseMap(context: Context, width: Int, height: Int): Bitmap? =
-        try { radarMap(context, width, height, includeRadar = false) }
+    fun radarBaseMap(
+        context: Context,
+        width: Int,
+        height: Int,
+        phase: ThemeResolver.Phase
+    ): Bitmap? =
+        try { radarMap(context, width, height, phase, includeRadar = false) }
         catch (e: Exception) { Log.w(TAG, "Base map failed: ${e.message}"); null }
 
     /**
@@ -385,7 +434,7 @@ object Backgrounds {
      * every other one gives a smoother-feeling loop over the same span for half
      * the payload.
      */
-    fun radarFrames(context: Context, width: Int, height: Int, count: Int): List<Bitmap> {
+    fun radarFrames(context: Context, width: Int, height: Int, count: Int): List<ByteArray> {
         val maps = getJson("https://api.rainviewer.com/public/weather-maps.json")
             ?: return emptyList()
         val host = maps.optString("host", "https://tilecache.rainviewer.com")
@@ -400,9 +449,20 @@ object Backgrounds {
         }
         paths.reverse()
 
+        // Encode and release each frame before fetching the next. Holding seven
+        // full-size ARGB bitmaps at once is ~56 MB and will OOM on a TV box —
+        // that was the cause of the blank wallpaper in 2.0.
         return paths.mapNotNull { path ->
-            try { radarLayerOnly(context, width, height, host, path) }
-            catch (e: Exception) { Log.w(TAG, "Frame failed: ${e.message}"); null }
+            var frame: Bitmap? = null
+            try {
+                frame = radarLayerOnly(context, width, height, host, path)
+                frame?.let { RadarAnimator.encodeFrame(it) }
+            } catch (t: Throwable) {
+                Log.w(TAG, "Frame failed: ${t.message}")
+                null
+            } finally {
+                frame?.recycle()
+            }
         }
     }
 
@@ -415,8 +475,8 @@ object Backgrounds {
         path: String
     ): Bitmap? {
         val zoom = PreferencesManager.radarZoom.coerceIn(4, 7)
-        val lat = PreferencesManager.latitude
-        val lon = PreferencesManager.longitude
+        val lat = PreferencesManager.currentLatitude
+        val lon = PreferencesManager.currentLongitude
 
         val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)

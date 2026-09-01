@@ -67,6 +67,117 @@ object WeatherRenderer {
         }
 
     /**
+     * World weather watch: a notable weather event somewhere else in the world.
+     *
+     * Laid out deliberately unlike the local view. A header names the feature,
+     * the affected country is prominent, and the caption strip runs along the
+     * bottom rather than the panel sitting top-left. Someone glancing at the
+     * screen has to be able to tell at once that this is not their own weather
+     * — a Red flood alert mistaken for local would be actively misleading.
+     */
+    fun renderWorldEvent(
+        context: Context,
+        event: WorldEventsClient.Event,
+        conditions: OpenMeteoClient.Conditions?,
+        phase: ThemeResolver.Phase
+    ): File {
+        val bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        light = Typeface.create("sans-serif-light", Typeface.NORMAL)
+        medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+
+        // Cyclones and droughts span huge areas; floods and fires are local.
+        val zoom = when (event.typeCode) {
+            "TC", "DR" -> 4
+            else -> 5
+        }
+        val map = Backgrounds.eventMap(
+            context, W, H, phase, event.latitude, event.longitude, zoom
+        )
+        if (map != null) {
+            canvas.drawBitmap(map, 0f, 0f, null)
+            map.recycle()
+        } else {
+            canvas.drawColor(Color.parseColor("#0A1420"))
+        }
+
+        // Top and bottom scrims: the caption sits low, the header high.
+        val topScrim = Paint().apply {
+            shader = LinearGradient(
+                0f, 0f, 0f, H * 0.22f,
+                Color.argb(200, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, W.toFloat(), H * 0.22f, topScrim)
+
+        val bottomScrim = Paint().apply {
+            shader = LinearGradient(
+                0f, H.toFloat(), 0f, H * 0.52f,
+                Color.argb(215, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, H * 0.52f, W.toFloat(), H.toFloat(), bottomScrim)
+
+        // Header: says plainly what this is.
+        canvas.drawText("WORLD WEATHER WATCH", MARGIN, MARGIN + 24f, paint(34f, medium, 215))
+
+        // Alert-level chip beside the header.
+        val chipLabel = "${event.alertLevel.uppercase()} ALERT"
+        val chipPaint = paint(26f, medium, 240)
+        val chipW = chipPaint.measureText(chipLabel) + 44f
+        val chipLeft = MARGIN + paint(34f, medium).measureText("WORLD WEATHER WATCH") + 40f
+        val chipRect = RectF(chipLeft, MARGIN - 4f, chipLeft + chipW, MARGIN + 38f)
+        canvas.drawRoundRect(chipRect, 19f, 19f, Paint().apply {
+            color = WorldEventsClient.colorFor(event.alertLevel)
+        })
+        canvas.drawText(chipLabel, chipLeft + 22f, MARGIN + 26f, chipPaint)
+
+        // Caption block, bottom left, above the app shelf.
+        var y = H - 250f
+        canvas.drawText(event.countries.uppercase(), MARGIN, y, paint(32f, medium, 200))
+        y += 84f
+        canvas.drawText(event.name, MARGIN, y, paint(76f, light))
+
+        // Named cyclones get a type line; a generated name like "Flood in
+        // Nepal" already contains it, so printing "Flood" again reads oddly.
+        if (!event.nameIsGenerated) {
+            y += 52f
+            canvas.drawText(event.type, MARGIN, y, paint(38f, light, 210))
+        }
+
+        if (event.severityText.isNotEmpty()) {
+            y += 46f
+            canvas.drawText(event.severityText, MARGIN, y, paint(30f, light, 175))
+        }
+
+        // Conditions at the event location, right-aligned so it can't be
+        // confused with the local panel's left-aligned block.
+        conditions?.let { c ->
+            val temp = "${c.temperature.roundToInt()}${c.unitSuffix}"
+            val tp = paint(96f, light, 235)
+            canvas.drawText(temp, W - MARGIN - tp.measureText(temp), H - 268f, tp)
+
+            val desc = OpenMeteoClient.describe(c.weatherCode)
+            val dp = paint(36f, light, 200)
+            canvas.drawText(desc, W - MARGIN - dp.measureText(desc), H - 214f, dp)
+
+            WeatherIcons.draw(
+                canvas, c.weatherCode, phase.isDay,
+                cx = W - MARGIN - 62f, cy = H - 392f, size = 104f
+            )
+        }
+
+        val credit = "Events: GDACS (UN/EC) \u00B7 Radar: RainViewer \u00B7 Map: Natural Earth"
+        canvas.drawText(credit, MARGIN, H - 46f, paint(24f, light, 125))
+
+        val out = File(context.cacheDir, OUTPUT_NAME)
+        FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        return out
+    }
+
+    /**
      * Panel only, on a transparent canvas.
      *
      * Used when the background is an animation the launcher renders itself: we
@@ -81,8 +192,12 @@ object WeatherRenderer {
         medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
         // Scrim still needed: contributed art can be any brightness.
+        val overlayPhase = ThemeResolver.resolve(c)
         drawScrim(canvas, strong = true)
-        drawPanel(canvas, c, placeLabel, attribution = null, alert = currentAlert)
+        drawPanel(
+            canvas, c, placeLabel, attribution = null,
+            alert = currentAlert, phaseIsDay = overlayPhase.isDay
+        )
 
         val out = File(context.cacheDir, OVERLAY_NAME)
         FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -109,14 +224,19 @@ object WeatherRenderer {
         light = Typeface.create("sans-serif-light", Typeface.NORMAL)
         medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
 
+        val phase = ThemeResolver.resolve(c)
         if (background != null) {
             canvas.drawBitmap(background, 0f, 0f, null)
-            drawScrim(canvas, strong = true)
+            drawScrim(canvas, strong = true, extraDark = phase == ThemeResolver.Phase.DAY)
         } else {
-            SceneBackgrounds.draw(canvas, W, H, c)
+            SceneBackgrounds.draw(canvas, W, H, c, phase)
             drawScrim(canvas, strong = false)
         }
-        drawPanel(canvas, c, placeLabel, "Radar: RainViewer \u00B7 Map: Natural Earth", alert)
+        drawPanel(
+            canvas, c, placeLabel,
+            "Radar: RainViewer \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)",
+            alert, phase.isDay
+        )
         return bitmap
     }
 
@@ -129,11 +249,12 @@ object WeatherRenderer {
 
         val bucket = OpenMeteoClient.bucket(c.weatherCode)
         val source = PreferencesManager.backgroundSource
+        val phase = ThemeResolver.resolve(c)
 
         val resolved = if (source == Backgrounds.SOURCE_SCENE || source == Backgrounds.SOURCE_GRADIENT) {
             null
         } else {
-            Backgrounds.resolve(context, source, c, W, H)
+            Backgrounds.resolve(context, source, c, W, H, phase)
         }
         var attribution: String? = null
 
@@ -141,7 +262,9 @@ object WeatherRenderer {
             canvas.drawBitmap(resolved.first, 0f, 0f, null)
             resolved.first.recycle()
             attribution = resolved.second
-            drawScrim(canvas, strong = true)
+            // A light daytime basemap needs a heavier scrim or the white panel
+            // text disappears into it.
+            drawScrim(canvas, strong = true, extraDark = phase == ThemeResolver.Phase.DAY)
         } else if (source == Backgrounds.SOURCE_GRADIENT) {
             val (top, bottom) = gradientFor(bucket, c.isDay)
             val bg = Paint().apply {
@@ -152,11 +275,11 @@ object WeatherRenderer {
             canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), bg)
             drawScrim(canvas, strong = false)
         } else {
-            SceneBackgrounds.draw(canvas, W, H, c)
+            SceneBackgrounds.draw(canvas, W, H, c, phase)
             drawScrim(canvas, strong = false)
         }
 
-        drawPanel(canvas, c, placeLabel, attribution, currentAlert)
+        drawPanel(canvas, c, placeLabel, attribution, currentAlert, phase.isDay)
 
         val out = File(context.cacheDir, OUTPUT_NAME)
         FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -170,7 +293,8 @@ object WeatherRenderer {
         c: OpenMeteoClient.Conditions,
         placeLabel: String,
         attribution: String?,
-        alert: NwsAlertsClient.Alert? = null
+        alert: NwsAlertsClient.Alert? = null,
+        phaseIsDay: Boolean = false
     ) {
         alert?.let { drawAlertBanner(canvas, it) }
 
@@ -184,7 +308,7 @@ object WeatherRenderer {
         canvas.drawText(temp, MARGIN, y, tempPaint)
 
         WeatherIcons.draw(
-            canvas, c.weatherCode, c.isDay,
+            canvas, c.weatherCode, phaseIsDay,
             cx = MARGIN + tempPaint.measureText(temp) + 130f,
             cy = y - 70f,
             size = 175f
@@ -408,9 +532,10 @@ object WeatherRenderer {
      * version stopped the rect at 65% height while its gradient was still
      * faintly opaque there, and the rect's own edge showed as a hard seam.
      */
-    private fun drawScrim(canvas: Canvas, strong: Boolean) {
-        val topAlpha = if (strong) 190 else 140
-        val midAlpha = if (strong) 95 else 60
+    private fun drawScrim(canvas: Canvas, strong: Boolean, extraDark: Boolean = false) {
+        val boost = if (extraDark) 45 else 0
+        val topAlpha = (if (strong) 190 else 140) + boost
+        val midAlpha = (if (strong) 95 else 60) + boost
         val midStop = if (strong) 0.38f else 0.30f
         val endStop = if (strong) 0.78f else 0.68f
 
@@ -432,7 +557,7 @@ object WeatherRenderer {
             val side = Paint().apply {
                 shader = LinearGradient(
                     0f, 0f, W * 0.62f, 0f,
-                    Color.argb(120, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP
+                    Color.argb(120 + boost, 0, 0, 0), Color.TRANSPARENT, Shader.TileMode.CLAMP
                 )
             }
             canvas.drawRect(0f, 0f, W.toFloat(), H.toFloat(), side)

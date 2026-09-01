@@ -35,6 +35,13 @@ object PreferencesManager {
     const val KEY_LABEL_DENSITY = "labelDensity"
     const val KEY_SHOW_ALERTS = "showAlerts"
     const val KEY_ANIMATE_RADAR = "animateRadar"
+    const val KEY_THEME_MODE = "themeMode"
+    const val KEY_WORLD_WATCH = "worldWatch"
+    const val KEY_WORLD_CURSOR = "worldCursor"
+    const val KEY_REFRESH_COUNT = "refreshCount"
+    const val KEY_LOCATIONS = "savedLocations"
+    const val KEY_LOCATION_CURSOR = "locationCursor"
+    const val KEY_CYCLE_MODE = "cycleMode"
     const val KEY_BASEMAP_URL = "basemapUrl"
     const val KEY_BASEMAP_ATTRIBUTION = "basemapAttribution"
 
@@ -112,6 +119,107 @@ object PreferencesManager {
         get() = prefs.getString(KEY_SELECTED_PACK, null) ?: ""
         set(v) = prefs.edit().putString(KEY_SELECTED_PACK, v).apply()
 
+    const val CYCLE_OFF = "off"
+    const val CYCLE_EVERY = "every"
+    const val CYCLE_ALTERNATE = "alternate"
+
+    /** One saved place. Label is what the wallpaper prints. */
+    data class SavedLocation(val label: String, val latitude: Double, val longitude: Double)
+
+    /**
+     * Extra locations to cycle through, beyond the primary one.
+     *
+     * Stored as JSON rather than as individual keys so the list can grow
+     * without a migration, and so it round-trips through the settings export
+     * the AIDL contract expects.
+     */
+    var savedLocations: List<SavedLocation>
+        get() = try {
+            val raw = prefs.getString(KEY_LOCATIONS, null) ?: return emptyList()
+            val arr = org.json.JSONArray(raw)
+            (0 until arr.length()).mapNotNull { i ->
+                val o = arr.optJSONObject(i) ?: return@mapNotNull null
+                val lat = o.optDouble("lat", Double.NaN)
+                val lon = o.optDouble("lon", Double.NaN)
+                if (lat.isNaN() || lon.isNaN()) null
+                else SavedLocation(o.optString("label"), lat, lon)
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+        set(v) {
+            val arr = org.json.JSONArray()
+            v.forEach {
+                arr.put(org.json.JSONObject().apply {
+                    put("label", it.label); put("lat", it.latitude); put("lon", it.longitude)
+                })
+            }
+            prefs.edit().putString(KEY_LOCATIONS, arr.toString()).apply()
+        }
+
+    /** How often to move to the next location in the rotation. */
+    var cycleMode: String
+        get() = prefs.getString(KEY_CYCLE_MODE, null) ?: CYCLE_OFF
+        set(v) = prefs.edit().putString(KEY_CYCLE_MODE, v).apply()
+
+    var locationCursor: Int
+        get() = prefs.getInt(KEY_LOCATION_CURSOR, 0)
+        set(v) = prefs.edit().putInt(KEY_LOCATION_CURSOR, v).apply()
+
+    /**
+     * The full rotation: the primary location first, then the saved extras.
+     * Always at least one entry, so callers never have to special-case empty.
+     */
+    val locationRotation: List<SavedLocation>
+        get() = listOf(SavedLocation(placeLabel, latitude, longitude)) + savedLocations
+
+    /**
+     * The location currently being rendered.
+     *
+     * Set by the service at the start of each refresh and read by the renderers,
+     * rather than threading a location through every drawing signature. Safe
+     * because a refresh renders one frame on one thread; the defaults are the
+     * primary location, so nothing breaks if it is never set.
+     */
+    @Volatile var activeLatitude: Double? = null
+    @Volatile var activeLongitude: Double? = null
+    @Volatile var activeLabel: String? = null
+
+    /** Coordinates the renderers should use right now. */
+    val currentLatitude: Double get() = activeLatitude ?: latitude
+    val currentLongitude: Double get() = activeLongitude ?: longitude
+
+    const val WORLD_OFF = "off"
+    const val WORLD_OCCASIONAL = "occasional"
+    const val WORLD_FREQUENT = "frequent"
+
+    /** How often the wallpaper shows a notable weather event from elsewhere. */
+    var worldWatch: String
+        get() = prefs.getString(KEY_WORLD_WATCH, null) ?: WORLD_OFF
+        set(v) = prefs.edit().putString(KEY_WORLD_WATCH, v).apply()
+
+    /** Which event in the list to show next, so it cycles rather than repeats. */
+    var worldCursor: Int
+        get() = prefs.getInt(KEY_WORLD_CURSOR, 0)
+        set(v) = prefs.edit().putInt(KEY_WORLD_CURSOR, v).apply()
+
+    /** Counts refreshes, so world events can appear every Nth one. */
+    var refreshCount: Int
+        get() = prefs.getInt(KEY_REFRESH_COUNT, 0)
+        set(v) = prefs.edit().putInt(KEY_REFRESH_COUNT, v).apply()
+
+    const val THEME_AUTO = "auto"
+    const val THEME_DAY = "day"
+    const val THEME_NIGHT = "night"
+
+    /**
+     * Day/night theming. Auto follows sunrise and sunset, including a twilight
+     * window either side of each.
+     */
+    var themeMode: String
+        get() = prefs.getString(KEY_THEME_MODE, null) ?: THEME_AUTO
+        set(v) = prefs.edit().putString(KEY_THEME_MODE, v).apply()
+
     /** Severe weather banner from the US National Weather Service. */
     var showAlerts: Boolean
         get() = prefs.getBoolean(KEY_SHOW_ALERTS, true)
@@ -166,7 +274,7 @@ object PreferencesManager {
      * caller that forgot to check it.
      */
     val displayLabel: String
-        get() = if (demoMode) demoLabel else placeLabel
+        get() = if (demoMode) demoLabel else (activeLabel ?: placeLabel)
 
     var locationConfigured: Boolean
         get() = prefs.getBoolean(KEY_CONFIGURED, false)
@@ -190,6 +298,10 @@ object PreferencesManager {
         put(KEY_LABEL_DENSITY, labelDensity)
         put(KEY_SHOW_ALERTS, showAlerts)
         put(KEY_ANIMATE_RADAR, animateRadar)
+        put(KEY_THEME_MODE, themeMode)
+        put(KEY_WORLD_WATCH, worldWatch)
+        put(KEY_CYCLE_MODE, cycleMode)
+        put(KEY_LOCATIONS, prefs.getString(KEY_LOCATIONS, "[]"))
         put(KEY_BASEMAP_URL, basemapUrl)
         put(KEY_BASEMAP_ATTRIBUTION, basemapAttribution)
         // Deliberately not exported: an API key shouldn't travel in a settings
@@ -216,6 +328,12 @@ object PreferencesManager {
             if (json.has(KEY_LABEL_DENSITY)) labelDensity = json.getString(KEY_LABEL_DENSITY)
             if (json.has(KEY_SHOW_ALERTS)) showAlerts = json.getBoolean(KEY_SHOW_ALERTS)
             if (json.has(KEY_ANIMATE_RADAR)) animateRadar = json.getBoolean(KEY_ANIMATE_RADAR)
+            if (json.has(KEY_THEME_MODE)) themeMode = json.getString(KEY_THEME_MODE)
+            if (json.has(KEY_WORLD_WATCH)) worldWatch = json.getString(KEY_WORLD_WATCH)
+            if (json.has(KEY_CYCLE_MODE)) cycleMode = json.getString(KEY_CYCLE_MODE)
+            if (json.has(KEY_LOCATIONS)) {
+                prefs.edit().putString(KEY_LOCATIONS, json.getString(KEY_LOCATIONS)).apply()
+            }
             if (json.has(KEY_BASEMAP_URL)) basemapUrl = json.getString(KEY_BASEMAP_URL)
             if (json.has(KEY_BASEMAP_ATTRIBUTION)) basemapAttribution = json.getString(KEY_BASEMAP_ATTRIBUTION)
         } catch (e: Exception) {

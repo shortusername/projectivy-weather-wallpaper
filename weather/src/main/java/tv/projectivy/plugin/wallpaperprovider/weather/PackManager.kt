@@ -125,23 +125,37 @@ object PackManager {
      * Condition keys, most specific first. A pack only needs the ones it wants
      * to cover; resolution falls back through this list to "default".
      */
-    fun candidateKeys(c: OpenMeteoClient.Conditions): List<String> {
+    fun candidateKeys(
+        c: OpenMeteoClient.Conditions,
+        phase: ThemeResolver.Phase
+    ): List<String> {
         val bucket = OpenMeteoClient.bucket(c.weatherCode)
-        val time = if (c.isDay) "day" else "night"
+        val exact = phase.key                       // dawn / day / dusk / night
+        val coarse = if (phase.isDay) "day" else "night"
+
+        // Dawn and dusk are additions, so they resolve down to day or night for
+        // any pack that predates them. Existing packs keep working untouched.
         return listOf(
-            "${bucket}-$time",   // clear-night
-            bucket,              // clear
-            time,                // night
+            "$bucket-$exact",
+            "$bucket-$coarse",
+            bucket,
+            exact,
+            coarse,
             "default"
-        )
+        ).distinct()
     }
 
     /**
      * Local file for the current conditions, downloading if needed.
      * Null when the pack covers nothing applicable or the download fails.
      */
-    fun resolveAsset(context: Context, pack: Pack, c: OpenMeteoClient.Conditions): File? {
-        val url = candidateKeys(c).firstNotNullOfOrNull { pack.assets[it] } ?: return null
+    fun resolveAsset(
+        context: Context,
+        pack: Pack,
+        c: OpenMeteoClient.Conditions,
+        phase: ThemeResolver.Phase
+    ): File? {
+        val url = candidateKeys(c, phase).firstNotNullOfOrNull { pack.assets[it] } ?: return null
 
         val dir = File(context.filesDir, "packs/${pack.id}").apply { mkdirs() }
         // Hash the URL for the filename: keeps it filesystem-safe and means a

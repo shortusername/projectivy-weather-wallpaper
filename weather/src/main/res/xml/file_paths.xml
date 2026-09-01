@@ -4,4 +4,6 @@
     <cache-path name="weather_cache" path="." />
     <!-- Downloaded community pack assets -->
     <files-path name="weather_packs" path="packs/" />
+    <!-- Diagnostic report, and the folder users drop their own photos into -->
+    <external-files-path name="weather_external" path="." />
 </paths>

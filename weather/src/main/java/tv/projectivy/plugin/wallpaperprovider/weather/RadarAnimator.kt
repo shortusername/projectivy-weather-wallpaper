@@ -54,7 +54,28 @@ object RadarAnimator {
      * @param base the still scene: map, borders, labels, weather panel
      * @param radarFrames oldest first; the last is the current observation
      */
-    fun build(cacheDir: File, base: Bitmap, radarFrames: List<Bitmap>): File? {
+    /**
+     * Half-scale lossy WebP bytes for one radar frame.
+     *
+     * Callers encode each frame as it arrives and recycle the bitmap
+     * immediately: seven 1920x1080 ARGB bitmaps held together is roughly 56 MB,
+     * which a TV box will not tolerate.
+     */
+    fun encodeFrame(frame: Bitmap): ByteArray {
+        val small = Bitmap.createScaledBitmap(
+            frame, frame.width / RADAR_DIV, frame.height / RADAR_DIV, true
+        )
+        return try {
+            ByteArrayOutputStream().use { stream ->
+                small.compress(webpFormat(), RADAR_QUALITY, stream)
+                stream.toByteArray()
+            }
+        } finally {
+            small.recycle()
+        }
+    }
+
+    fun build(cacheDir: File, base: Bitmap, radarFrames: List<ByteArray>): File? {
         if (radarFrames.isEmpty()) return null
         return try {
             val totalFrames = (radarFrames.size - 1) * HOLD + FINAL_HOLD
@@ -71,13 +92,11 @@ object RadarAnimator {
                 )
             )
 
-            radarFrames.forEachIndexed { i, frame ->
+            radarFrames.forEachIndexed { i, encoded ->
                 val assetId = "radar_$i"
-                val small = Bitmap.createScaledBitmap(
-                    frame, frame.width / RADAR_DIV, frame.height / RADAR_DIV, true
+                assets.put(
+                    encodedAsset(assetId, encoded, W / RADAR_DIV, H / RADAR_DIV)
                 )
-                assets.put(imageAsset(assetId, small, RADAR_QUALITY))
-                small.recycle()
 
                 val start = i * HOLD
                 val end = if (i == radarFrames.size - 1) totalFrames else start + HOLD
@@ -111,8 +130,10 @@ object RadarAnimator {
                 "Built ${radarFrames.size}-frame loop, ${out.length() / 1024} KB, ${totalFrames}f"
             )
             out
-        } catch (e: Exception) {
-            Log.w(TAG, "Loop build failed: ${e.message}")
+        } catch (t: Throwable) {
+            // Throwable, not Exception: OutOfMemoryError is an Error, and letting
+            // it escape kills the binder call and blanks the wallpaper entirely.
+            Log.w(TAG, "Loop build failed: ${t.message}")
             null
         }
     }
@@ -123,25 +144,29 @@ object RadarAnimator {
      * larger; palette quantisation isn't available in the platform encoder.
      */
     @Suppress("DEPRECATION")
+    private fun webpFormat(): Bitmap.CompressFormat =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R)
+            Bitmap.CompressFormat.WEBP_LOSSY
+        else
+            Bitmap.CompressFormat.WEBP
+
     private fun imageAsset(id: String, bitmap: Bitmap, quality: Int): JSONObject {
         val bytes = ByteArrayOutputStream().use { stream ->
-            val format =
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R)
-                    Bitmap.CompressFormat.WEBP_LOSSY
-                else
-                    Bitmap.CompressFormat.WEBP
-            bitmap.compress(format, quality, stream)
+            bitmap.compress(webpFormat(), quality, stream)
             stream.toByteArray()
         }
-        return JSONObject().apply {
+        return encodedAsset(id, bytes, bitmap.width, bitmap.height)
+    }
+
+    private fun encodedAsset(id: String, bytes: ByteArray, w: Int, h: Int): JSONObject =
+        JSONObject().apply {
             put("id", id)
-            put("w", bitmap.width)
-            put("h", bitmap.height)
+            put("w", w)
+            put("h", h)
             put("u", "")
             put("p", "data:image/webp;base64," + Base64.encodeToString(bytes, Base64.NO_WRAP))
             put("e", 1)
         }
-    }
 
     private fun imageLayer(
         id: String,

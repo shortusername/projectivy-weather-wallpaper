@@ -30,6 +30,20 @@ one.
 **Canvas: 1920x1080.** Other sizes work but get centre-cropped. Lottie files
 should declare `w` and `h`; the panel is scaled to match.
 
+**Start from the template.** `templates/pack-template-1920x1080.psd` is a
+layered file with every safe zone marked. Opens in Photoshop, Affinity Photo,
+GIMP, Krita and Photopea.
+
+- Put your art on the **YOUR ARTWORK** layer at the bottom
+- Toggle **PREVIEW - plugin scrim** on to see roughly how much the plugin
+  darkens the top-left, so you can check your art still reads through it
+- Hide or delete the **GUIDE** layers before exporting
+- **GUIDE - thirds** is off by default if you want composition guides
+
+Not using a layered editor? `templates/pack-guides-overlay-1920x1080.png` is the
+same guides as a single transparent PNG — drop it over your artwork, check the
+fit, delete it. `pack-scrim-preview-1920x1080.png` is the scrim on its own.
+
 **Respect the safe zones.** The launcher and the plugin both draw over your art:
 
 ```
@@ -64,15 +78,19 @@ under 15 seconds, seamlessly looping.
 Keys are resolved most specific first, falling back down this chain:
 
 ```
-clear-night  →  clear  →  night  →  default
+clear-dusk  →  clear-night  →  clear  →  dusk  →  night  →  default
 ```
 
 So a pack needs only `default` to be valid. Available keys:
 
 - Buckets: `clear`, `cloud`, `rain`, `snow`, `storm`
-- With time: `clear-day`, `clear-night`, `cloud-day`, and so on
-- Time only: `day`, `night`
+- With time: `clear-day`, `clear-night`, `cloud-dawn`, `storm-dusk`, and so on
+- Time only: `day`, `night`, `dawn`, `dusk`
 - Fallback: `default`
+
+`dawn` and `dusk` cover the 40 minutes either side of sunrise and sunset. They
+are optional: a pack that only supplies `day` and `night` keeps working exactly
+as before, because twilight falls back to whichever of those applies.
 
 `cloud` covers fog. `rain` covers drizzle and showers. `storm` covers
 thunderstorms and hail.

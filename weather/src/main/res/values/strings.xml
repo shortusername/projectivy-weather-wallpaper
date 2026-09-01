@@ -11,6 +11,23 @@
     <string name="setting_latitude_title">Latitude</string>
     <string name="setting_longitude_title">Longitude</string>
     <string name="setting_place_title">Location name</string>
+    <string name="setting_add_location_title">Add a location</string>
+    <string name="setting_add_location_desc">Type a town or city name</string>
+    <string name="locations_searching">Searching\u2026</string>
+    <string name="locations_no_match">No match for \"%1$s\"</string>
+    <string name="locations_pick_match">%1$d matches \u2014 open to choose</string>
+    <string name="locations_added">Added %1$s</string>
+    <string name="locations_duplicate">%1$s is already saved</string>
+    <string name="setting_locations_title">Saved locations</string>
+    <string name="locations_none">None \u2014 only your primary location</string>
+    <string name="locations_count">%1$d extra location(s)</string>
+    <string name="locations_remove_hint">Select to remove</string>
+    <string name="locations_removed">Removed %1$s</string>
+    <string name="setting_cycle_title">Cycle between locations</string>
+    <string name="cycle_off">Off \u2014 primary location only</string>
+    <string name="cycle_alternate">Slowly \u2014 about every half hour</string>
+    <string name="cycle_every">Each refresh \u2014 about every 15 minutes</string>
+
     <string name="setting_units_title">Use metric units</string>
     <string name="setting_alerts_title">Severe weather alerts</string>
     <string name="setting_alerts_desc">Banner for active NWS warnings (US only)</string>
@@ -26,6 +43,16 @@
     <string name="setting_stats_desc">Humidity, UV, dew point, visibility, pressure</string>
     <string name="setting_sun_title">Show sun times</string>
     <string name="setting_sun_desc">Sunrise, sunset and daylight remaining</string>
+
+    <string name="setting_world_title">World weather watch</string>
+    <string name="world_off">Off \u2014 only local weather</string>
+    <string name="world_occasional">Occasionally \u2014 about every hour</string>
+    <string name="world_frequent">Often \u2014 about every half hour</string>
+
+    <string name="setting_theme_title">Day / night theme</string>
+    <string name="theme_auto">Automatic \u2014 follows sunrise and sunset</string>
+    <string name="theme_day">Always light</string>
+    <string name="theme_night">Always dark</string>
 
     <string name="setting_labels_title">Place names on radar</string>
     <string name="labels_off">None</string>
@@ -44,6 +71,24 @@
     <string name="setting_demo_label_title">Demo label</string>
     <string name="default_demo_label">Weather</string>
     <string name="toast_demo_radar_warning">Radar still shows your area — the map itself identifies it</string>
+
+    <string name="setting_report_title">Create debug report</string>
+    <string name="setting_report_desc">Saves a redacted diagnostic file you can attach to an issue</string>
+    <string name="report_working">Collecting\u2026</string>
+    <string name="report_failed">Couldn\'t write the report</string>
+    <string name="report_written">Saved to Android/data/\u2026/files/%1$s/weather-plugin-report.txt</string>
+    <string name="report_share_title">Share debug report</string>
+    <string name="report_no_share_target">No share app available \u2014 copy the file over adb instead</string>
+
+    <string name="setting_update_title">Check for updates</string>
+    <string name="setting_update_desc">Installed: v%1$s</string>
+    <string name="update_checking">Checking GitHub\u2026</string>
+    <string name="update_check_failed">Couldn\'t reach GitHub</string>
+    <string name="update_up_to_date">v%1$s is the latest release</string>
+    <string name="update_downloading">Downloading v%1$s\u2026</string>
+    <string name="update_download_failed">Download failed</string>
+    <string name="update_ready">v%1$s ready \u2014 confirm the install</string>
+    <string name="update_install_failed">Allow this app to install unknown apps, then retry</string>
 
     <string name="setting_refresh_title">Refresh now</string>
     <string name="setting_refresh_desc">Fetch current conditions and redraw</string>

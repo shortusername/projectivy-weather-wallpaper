@@ -49,13 +49,64 @@ object GeographyRenderer {
 
     // Broadcast-style palette: land reads lighter than water, both desaturated
     // so the radar colours stay dominant.
-    private const val C_WATER_TOP = 0xFF16283C.toInt()
-    private const val C_WATER = 0xFF081220.toInt()
-    private const val C_LAND_TOP = 0xFF4A5868.toInt()
-    private const val C_LAND = 0xFF34424F.toInt()
-    private const val C_LAKE = 0xFF1A2838.toInt()
-    private const val C_COAST = 0xFF96BEDF.toInt()
-    private const val C_COAST_GLOW = 0xFF5F96C8.toInt()
+    /**
+     * Palette per phase.
+     *
+     * Day is a light map: radar colours are saturated enough to hold up against
+     * it, and it stops the wallpaper looking nocturnal at noon. The panel scrim
+     * is strengthened to compensate — see WeatherRenderer.
+     */
+    private class Palette(
+        val waterTop: Int, val water: Int,
+        val landTop: Int, val land: Int,
+        val lake: Int,
+        val coast: Int, val coastGlow: Int,
+        val border: Int, val borderHalo: Int,
+        val label: Int, val labelHalo: Int
+    )
+
+    private val NIGHT = Palette(
+        waterTop = 0xFF16283C.toInt(), water = 0xFF081220.toInt(),
+        landTop = 0xFF4A5868.toInt(), land = 0xFF34424F.toInt(),
+        lake = 0xFF1A2838.toInt(),
+        coast = 0xFF96BEDF.toInt(), coastGlow = 0xFF5F96C8.toInt(),
+        border = 0xFFC4D6EC.toInt(), borderHalo = 0xFF080E18.toInt(),
+        label = 0xFFE8F0FA.toInt(), labelHalo = 0xFF040A12.toInt()
+    )
+
+    private val DAY = Palette(
+        waterTop = 0xFFAFC9DE.toInt(), water = 0xFF8FB0CC.toInt(),
+        landTop = 0xFFE9E4D8.toInt(), land = 0xFFD3CDBE.toInt(),
+        lake = 0xFF9CBBD4.toInt(),
+        coast = 0xFF4C6E8C.toInt(), coastGlow = 0xFF7FA3C2.toInt(),
+        border = 0xFF5A6B7E.toInt(), borderHalo = 0xFFF2EFE7.toInt(),
+        label = 0xFF23303C.toInt(), labelHalo = 0xFFF4F1EA.toInt()
+    )
+
+    private val DAWN = Palette(
+        waterTop = 0xFF4A5A78.toInt(), water = 0xFF2A3550.toInt(),
+        landTop = 0xFF8A7C7A.toInt(), land = 0xFF5F5860.toInt(),
+        lake = 0xFF35415C.toInt(),
+        coast = 0xFFE8B48C.toInt(), coastGlow = 0xFFC98A62.toInt(),
+        border = 0xFFE4CDBC.toInt(), borderHalo = 0xFF1A1620.toInt(),
+        label = 0xFFF6EAE0.toInt(), labelHalo = 0xFF1A1218.toInt()
+    )
+
+    private val DUSK = Palette(
+        waterTop = 0xFF3A3E62.toInt(), water = 0xFF1E2138.toInt(),
+        landTop = 0xFF7A6470.toInt(), land = 0xFF4E4452.toInt(),
+        lake = 0xFF262A44.toInt(),
+        coast = 0xFFE0A0A8.toInt(), coastGlow = 0xFFB4707E.toInt(),
+        border = 0xFFE8D2D6.toInt(), borderHalo = 0xFF16121A.toInt(),
+        label = 0xFFF8ECEE.toInt(), labelHalo = 0xFF160F14.toInt()
+    )
+
+    private fun paletteFor(phase: ThemeResolver.Phase) = when (phase) {
+        ThemeResolver.Phase.DAY -> DAY
+        ThemeResolver.Phase.DAWN -> DAWN
+        ThemeResolver.Phase.DUSK -> DUSK
+        ThemeResolver.Phase.NIGHT -> NIGHT
+    }
 
     private class Poly(val layer: Int, val rings: List<DoubleArray>) {
         var minLon = Double.MAX_VALUE; var maxLon = -Double.MAX_VALUE
@@ -195,9 +246,11 @@ object GeographyRenderer {
         top: Double,
         scale: Double,
         width: Int,
-        height: Int
+        height: Int,
+        phase: ThemeResolver.Phase
     ): Boolean {
         val d = load(context) ?: return false
+        val pal = paletteFor(phase)
 
         val n = 1 shl zoom
         val worldPx = n * 256.0
@@ -216,7 +269,7 @@ object GeographyRenderer {
         val waterPaint = Paint().apply {
             shader = LinearGradient(
                 0f, 0f, 0f, height.toFloat(),
-                C_WATER_TOP, C_WATER, Shader.TileMode.CLAMP
+                pal.waterTop, pal.water, Shader.TileMode.CLAMP
             )
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), waterPaint)
@@ -227,23 +280,23 @@ object GeographyRenderer {
             style = Paint.Style.FILL
             shader = LinearGradient(
                 0f, 0f, 0f, height.toFloat(),
-                C_LAND_TOP, C_LAND, Shader.TileMode.CLAMP
+                pal.landTop, pal.land, Shader.TileMode.CLAMP
             )
         }
         val lakePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.FILL; color = C_LAKE
+            style = Paint.Style.FILL; color = pal.lake
         }
 
-        val coastPaint = strokePaint(C_COAST, if (zoom <= 5) 1.8f else 2.4f)
+        val coastPaint = strokePaint(pal.coast, if (zoom <= 5) 1.8f else 2.4f)
         // Wide blurred pass under the crisp line: gives the shoreline a soft
         // halo, which is most of what makes broadcast maps look considered.
-        val coastGlow = strokePaint(C_COAST_GLOW, if (zoom <= 5) 10f else 16f).apply {
+        val coastGlow = strokePaint(pal.coastGlow, if (zoom <= 5) 10f else 16f).apply {
             alpha = 105
             maskFilter = BlurMaskFilter(
                 if (zoom <= 5) 8f else 12f, BlurMaskFilter.Blur.NORMAL
             )
         }
-        val lakeEdge = strokePaint(Color.argb(120, 110, 150, 190), 1.8f)
+        val lakeEdge = strokePaint(withAlpha(pal.coast, 120), 1.8f)
         val pad = 300f
         val path = Path()
         var drew = 0
@@ -290,12 +343,12 @@ object GeographyRenderer {
         val strokeW = if (zoom <= 5) 1.4f else if (zoom <= 7) 1.9f else 2.3f
         val dashes = DashPathEffect(floatArrayOf(14f, 9f), 0f)
 
-        val countryHalo = strokePaint(Color.argb(190, 8, 14, 24), strokeW * 3.0f)
-        val stateHalo = strokePaint(Color.argb(170, 8, 14, 24), strokeW * 2.6f).apply {
+        val countryHalo = strokePaint(withAlpha(pal.borderHalo, 190), strokeW * 3.0f)
+        val stateHalo = strokePaint(withAlpha(pal.borderHalo, 170), strokeW * 2.6f).apply {
             pathEffect = dashes
         }
-        val country = strokePaint(Color.argb(240, 225, 236, 250), strokeW * 1.5f)
-        val state = strokePaint(Color.argb(215, 196, 214, 236), strokeW * 1.05f).apply {
+        val country = strokePaint(withAlpha(pal.border, 240), strokeW * 1.5f)
+        val state = strokePaint(withAlpha(pal.border, 215), strokeW * 1.05f).apply {
             pathEffect = dashes
         }
 
@@ -316,7 +369,8 @@ object GeographyRenderer {
             drew++
         }
 
-        drawPlaces(canvas, d, zoom, lonMin, lonMax, latMin, latMax, ::px, ::py, width, height)
+        drawPlaces(canvas, d, zoom, lonMin, lonMax, latMin, latMax, ::px, ::py,
+            width, height, pal)
         return drew > 0
     }
 
@@ -331,7 +385,8 @@ object GeographyRenderer {
         zoom: Int,
         lonMin: Double, lonMax: Double, latMin: Double, latMax: Double,
         px: (Double) -> Float, py: (Double) -> Float,
-        width: Int, height: Int
+        width: Int, height: Int,
+        pal: Palette
     ) {
         val density = PreferencesManager.labelDensity
         if (density == PreferencesManager.LABELS_OFF) return
@@ -353,13 +408,13 @@ object GeographyRenderer {
 
         val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.argb(150, 210, 220, 235)
+            color = withAlpha(pal.label, 210)
         }
         val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = Typeface.create("sans-serif", Typeface.NORMAL)
             textSize = 26f
-            color = Color.argb(185, 225, 232, 242)
-            setShadowLayer(6f, 0f, 2f, Color.argb(190, 0, 0, 0))
+            color = pal.label
+            setShadowLayer(6f, 0f, 2f, withAlpha(pal.labelHalo, 200))
         }
 
         // Keep labels out of the weather panel's corner.
@@ -368,7 +423,7 @@ object GeographyRenderer {
 
         val dotHalo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             style = Paint.Style.FILL
-            color = Color.argb(150, 0, 0, 0)
+            color = withAlpha(pal.labelHalo, 170)
         }
 
         // Occupied label boxes. Candidates arrive sorted by rank, so when two
@@ -460,6 +515,9 @@ object GeographyRenderer {
             out.add(ax + t * (bx - ax)); out.add(y)
         }
     }
+
+    private fun withAlpha(color: Int, alpha: Int): Int =
+        Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
 
     private fun strokePaint(color: Int, width: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE

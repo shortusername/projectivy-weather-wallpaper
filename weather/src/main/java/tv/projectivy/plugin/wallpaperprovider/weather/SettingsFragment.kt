@@ -11,6 +11,10 @@ import tv.projectivy.plugin.wallpaperprovider.api.WallpaperProviderContract
 
 class SettingsFragment : GuidedStepSupportFragment() {
 
+    /** Held between a search and the user picking one of its results. */
+    private var searchResults: List<GeocodingClient.Place> = emptyList()
+
+
     companion object {
         private const val ACTION_ID_LATITUDE = 1L
         private const val ACTION_ID_LONGITUDE = 2L
@@ -41,6 +45,30 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_LABELS = 19L
         private const val ACTION_ID_ALERTS = 20L
         private const val ACTION_ID_ANIMATE = 21L
+        private const val ACTION_ID_THEME = 22L
+        private const val ACTION_ID_UPDATE = 23L
+        private const val ACTION_ID_REPORT = 24L
+        private const val ACTION_ID_WORLD = 25L
+        private const val ACTION_ID_ADD_LOCATION = 26L
+        private const val ACTION_ID_LOCATIONS = 27L
+        private const val ACTION_ID_CYCLE = 28L
+
+        private const val SUB_CYCLE_OFF = 150L
+        private const val SUB_CYCLE_EVERY = 151L
+        private const val SUB_CYCLE_ALT = 152L
+
+        /** Geocoding matches occupy their own id range. */
+        private const val SUB_SEARCH_BASE = 2000L
+        /** Saved locations, selected to remove. */
+        private const val SUB_SAVED_BASE = 3000L
+
+        private const val SUB_WORLD_OFF = 140L
+        private const val SUB_WORLD_OCC = 141L
+        private const val SUB_WORLD_FREQ = 142L
+
+        private const val SUB_THEME_AUTO = 130L
+        private const val SUB_THEME_DAY = 131L
+        private const val SUB_THEME_NIGHT = 132L
 
         private const val SUB_AREA_WIDE = 120L
         private const val SUB_AREA_REGIONAL = 121L
@@ -108,6 +136,56 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .description(place)
                 .editDescription(place)
                 .descriptionEditable(true)
+                .build()
+        )
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_ADD_LOCATION)
+                .title(R.string.setting_add_location_title)
+                .description(R.string.setting_add_location_desc)
+                .editDescription("")
+                .descriptionEditable(true)
+                .build()
+        )
+
+        val extras = PreferencesManager.savedLocations
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_LOCATIONS)
+                .title(R.string.setting_locations_title)
+                .description(
+                    if (extras.isEmpty()) getString(R.string.locations_none)
+                    else getString(R.string.locations_count, extras.size)
+                )
+                .subActions(
+                    if (extras.isEmpty()) {
+                        listOf(subAction(SUB_SAVED_BASE - 1, R.string.locations_none))
+                    } else {
+                        extras.mapIndexed { i, loc ->
+                            GuidedAction.Builder(context)
+                                .id(SUB_SAVED_BASE + i)
+                                .title(loc.label)
+                                .description(R.string.locations_remove_hint)
+                                .build()
+                        }
+                    }
+                )
+                .build()
+        )
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_CYCLE)
+                .title(R.string.setting_cycle_title)
+                .description(cycleLabel())
+                .subActions(
+                    listOf(
+                        subAction(SUB_CYCLE_OFF, R.string.cycle_off),
+                        subAction(SUB_CYCLE_ALT, R.string.cycle_alternate),
+                        subAction(SUB_CYCLE_EVERY, R.string.cycle_every)
+                    )
+                )
                 .build()
         )
 
@@ -212,6 +290,36 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
         actions.add(
             GuidedAction.Builder(context)
+                .id(ACTION_ID_WORLD)
+                .title(R.string.setting_world_title)
+                .description(worldLabel())
+                .subActions(
+                    listOf(
+                        subAction(SUB_WORLD_OFF, R.string.world_off),
+                        subAction(SUB_WORLD_OCC, R.string.world_occasional),
+                        subAction(SUB_WORLD_FREQ, R.string.world_frequent)
+                    )
+                )
+                .build()
+        )
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_THEME)
+                .title(R.string.setting_theme_title)
+                .description(themeLabel())
+                .subActions(
+                    listOf(
+                        subAction(SUB_THEME_AUTO, R.string.theme_auto),
+                        subAction(SUB_THEME_DAY, R.string.theme_day),
+                        subAction(SUB_THEME_NIGHT, R.string.theme_night)
+                    )
+                )
+                .build()
+        )
+
+        actions.add(
+            GuidedAction.Builder(context)
                 .id(ACTION_ID_LABELS)
                 .title(R.string.setting_labels_title)
                 .description(labelDensityLabel())
@@ -274,6 +382,24 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .description(R.string.setting_refresh_desc)
                 .build()
         )
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_REPORT)
+                .title(R.string.setting_report_title)
+                .description(R.string.setting_report_desc)
+                .build()
+        )
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_UPDATE)
+                .title(R.string.setting_update_title)
+                .description(
+                    getString(R.string.setting_update_desc, BuildConfig.VERSION_NAME)
+                )
+                .build()
+        )
     }
 
     private fun checkbox(id: Long, titleRes: Int, descRes: Int, checked: Boolean): GuidedAction =
@@ -307,6 +433,61 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 }
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
+            return true
+        }
+
+        if (action.id >= SUB_SAVED_BASE) {
+            val index = (action.id - SUB_SAVED_BASE).toInt()
+            val current = PreferencesManager.savedLocations
+            current.getOrNull(index)?.let { removed ->
+                PreferencesManager.savedLocations =
+                    current.filterIndexed { i, _ -> i != index }
+                toast(getString(R.string.locations_removed, removed.label))
+                rebuild()
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            return true
+        }
+
+        if (action.id >= SUB_SEARCH_BASE) {
+            val index = (action.id - SUB_SEARCH_BASE).toInt()
+            searchResults.getOrNull(index)?.let { addPlace(it) }
+            return true
+        }
+
+        if (action.id in SUB_CYCLE_OFF..SUB_CYCLE_ALT) {
+            PreferencesManager.cycleMode = when (action.id) {
+                SUB_CYCLE_EVERY -> PreferencesManager.CYCLE_EVERY
+                SUB_CYCLE_ALT -> PreferencesManager.CYCLE_ALTERNATE
+                else -> PreferencesManager.CYCLE_OFF
+            }
+            findActionById(ACTION_ID_CYCLE)?.description = cycleLabel()
+            notifyActionChanged(findActionPositionById(ACTION_ID_CYCLE))
+            pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            return true
+        }
+
+        if (action.id in SUB_WORLD_OFF..SUB_WORLD_FREQ) {
+            PreferencesManager.worldWatch = when (action.id) {
+                SUB_WORLD_OCC -> PreferencesManager.WORLD_OCCASIONAL
+                SUB_WORLD_FREQ -> PreferencesManager.WORLD_FREQUENT
+                else -> PreferencesManager.WORLD_OFF
+            }
+            findActionById(ACTION_ID_WORLD)?.description = worldLabel()
+            notifyActionChanged(findActionPositionById(ACTION_ID_WORLD))
+            pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            return true
+        }
+
+        if (action.id in SUB_THEME_AUTO..SUB_THEME_NIGHT) {
+            PreferencesManager.themeMode = when (action.id) {
+                SUB_THEME_DAY -> PreferencesManager.THEME_DAY
+                SUB_THEME_NIGHT -> PreferencesManager.THEME_NIGHT
+                else -> PreferencesManager.THEME_AUTO
+            }
+            findActionById(ACTION_ID_THEME)?.description = themeLabel()
+            notifyActionChanged(findActionPositionById(ACTION_ID_THEME))
+            pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             return true
         }
 
@@ -436,6 +617,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 }
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
+            ACTION_ID_REPORT -> createReport()
+            ACTION_ID_UPDATE -> checkForUpdate()
             ACTION_ID_REFRESH -> {
                 pushUpdate(WallpaperProviderContract.UpdateReason.DATA_CHANGED)
                 toast(getString(R.string.toast_refresh_requested))
@@ -490,6 +673,9 @@ class SettingsFragment : GuidedStepSupportFragment() {
                     if (value.isBlank()) getString(R.string.basemap_attr_unset) else value
                 action.editDescription = value
             }
+            ACTION_ID_ADD_LOCATION -> {
+                searchLocation(value, action)
+            }
             ACTION_ID_DEMO_LABEL -> {
                 val label = value.ifEmpty { getString(R.string.default_demo_label) }
                 PreferencesManager.demoLabel = label
@@ -508,6 +694,206 @@ class SettingsFragment : GuidedStepSupportFragment() {
         pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
         return GuidedAction.ACTION_ID_CURRENT
     }
+
+    /**
+     * Writes a diagnostic report and offers to share it.
+     *
+     * Runs off the UI thread: it reads logcat and stats the pack cache, neither
+     * of which is instant. The report is deliberately written somewhere the user
+     * can reach without root or a permission grant.
+     */
+    private fun createReport() {
+        val action = findActionById(ACTION_ID_REPORT) ?: return
+        action.description = getString(R.string.report_working)
+        notifyActionChanged(findActionPositionById(ACTION_ID_REPORT))
+
+        Thread {
+            val ctx = context ?: return@Thread
+            val file = Diagnostics.write(ctx)
+            activity?.runOnUiThread {
+                if (!isAdded) return@runOnUiThread
+                if (file == null) {
+                    action.description = getString(R.string.report_failed)
+                } else {
+                    action.description = getString(
+                        R.string.report_written, file.parentFile?.name ?: "files"
+                    )
+                    shareReport(file)
+                }
+                notifyActionChanged(findActionPositionById(ACTION_ID_REPORT))
+            }
+        }.start()
+    }
+
+    /**
+     * Offers the report to any share target. TV boxes often have none, which is
+     * why the file path is shown regardless — sharing is the convenience, the
+     * file on disk is the guarantee.
+     */
+    private fun shareReport(file: java.io.File) {
+        try {
+            val uri = androidx.core.content.FileProvider.getUriForFile(
+                requireContext(), "${requireContext().packageName}.fileprovider", file
+            )
+            val send = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                putExtra(
+                    android.content.Intent.EXTRA_SUBJECT,
+                    "Weather Wallpaper v${BuildConfig.VERSION_NAME} report"
+                )
+                addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            startActivity(
+                android.content.Intent.createChooser(
+                    send, getString(R.string.report_share_title)
+                )
+            )
+        } catch (t: Throwable) {
+            toast(getString(R.string.report_no_share_target))
+        }
+    }
+
+    /**
+     * Fetches, downloads and installs in one action, on a worker thread.
+     *
+     * Two taps total: this, then the system installer's confirmation. Any
+     * failure reports itself rather than failing silently, because a broken
+     * update path is worse than no update path.
+     */
+    private fun checkForUpdate() {
+        val action = findActionById(ACTION_ID_UPDATE) ?: return
+        action.description = getString(R.string.update_checking)
+        notifyActionChanged(findActionPositionById(ACTION_ID_UPDATE))
+
+        Thread {
+            val release = UpdateChecker.fetchLatest()
+            val ctx = context ?: return@Thread
+
+            if (release == null) {
+                post(action, getString(R.string.update_check_failed))
+                return@Thread
+            }
+            if (!UpdateChecker.isNewer(release.version, BuildConfig.VERSION_NAME)) {
+                post(action, getString(R.string.update_up_to_date, BuildConfig.VERSION_NAME))
+                return@Thread
+            }
+
+            post(action, getString(R.string.update_downloading, release.version))
+            val apk = UpdateChecker.download(ctx, release)
+            if (apk == null) {
+                post(action, getString(R.string.update_download_failed))
+                return@Thread
+            }
+
+            post(action, getString(R.string.update_ready, release.version))
+            activity?.runOnUiThread {
+                if (!isAdded) return@runOnUiThread
+                if (!UpdateChecker.install(requireContext(), apk)) {
+                    toast(getString(R.string.update_install_failed))
+                }
+            }
+        }.start()
+    }
+
+    private fun post(action: GuidedAction, text: String) {
+        activity?.runOnUiThread {
+            if (!isAdded) return@runOnUiThread
+            action.description = text
+            notifyActionChanged(findActionPositionById(ACTION_ID_UPDATE))
+        }
+    }
+
+    /**
+     * Searches by name on a worker thread.
+     *
+     * One match is added straight away. Several become sub-actions for the user
+     * to choose from, because a bare name is often ambiguous — "Springfield"
+     * returns four US cities, and silently picking the largest would be wrong
+     * about as often as it was right.
+     */
+    private fun searchLocation(query: String, action: GuidedAction) {
+        if (query.isBlank()) return
+        action.description = getString(R.string.locations_searching)
+        notifyActionChanged(findActionPositionById(ACTION_ID_ADD_LOCATION))
+
+        Thread {
+            val results = GeocodingClient.search(query)
+            activity?.runOnUiThread {
+                if (!isAdded) return@runOnUiThread
+                searchResults = results
+                when {
+                    results.isEmpty() -> {
+                        action.description = getString(R.string.locations_no_match, query)
+                        notifyActionChanged(findActionPositionById(ACTION_ID_ADD_LOCATION))
+                    }
+                    results.size == 1 -> addPlace(results.first())
+                    else -> {
+                        action.subActions = results.mapIndexed { i, place ->
+                            GuidedAction.Builder(context)
+                                .id(SUB_SEARCH_BASE + i)
+                                .title(place.label)
+                                .build()
+                        }
+                        action.description =
+                            getString(R.string.locations_pick_match, results.size)
+                        notifyActionChanged(findActionPositionById(ACTION_ID_ADD_LOCATION))
+                        toast(getString(R.string.locations_pick_match, results.size))
+                    }
+                }
+            }
+        }.start()
+    }
+
+    private fun addPlace(place: GeocodingClient.Place) {
+        val existing = PreferencesManager.savedLocations
+        // Guard against duplicates: the same place added twice would just show
+        // twice in the rotation with no indication why.
+        if (existing.any {
+                Math.abs(it.latitude - place.latitude) < 0.01 &&
+                        Math.abs(it.longitude - place.longitude) < 0.01
+            }) {
+            toast(getString(R.string.locations_duplicate, place.shortLabel))
+            return
+        }
+        PreferencesManager.savedLocations = existing + PreferencesManager.SavedLocation(
+            place.shortLabel, place.latitude, place.longitude
+        )
+        toast(getString(R.string.locations_added, place.label))
+        rebuild()
+        pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+    }
+
+    /** Rebuilds the action list so counts and sub-action lists stay accurate. */
+    private fun rebuild() {
+        val actions = mutableListOf<GuidedAction>()
+        onCreateActions(actions, null)
+        setActions(actions)
+    }
+
+    private fun cycleLabel(): String = getString(
+        when (PreferencesManager.cycleMode) {
+            PreferencesManager.CYCLE_EVERY -> R.string.cycle_every
+            PreferencesManager.CYCLE_ALTERNATE -> R.string.cycle_alternate
+            else -> R.string.cycle_off
+        }
+    )
+
+    private fun worldLabel(): String = getString(
+        when (PreferencesManager.worldWatch) {
+            PreferencesManager.WORLD_OCCASIONAL -> R.string.world_occasional
+            PreferencesManager.WORLD_FREQUENT -> R.string.world_frequent
+            else -> R.string.world_off
+        }
+    )
+
+    private fun themeLabel(): String = getString(
+        when (PreferencesManager.themeMode) {
+            PreferencesManager.THEME_DAY -> R.string.theme_day
+            PreferencesManager.THEME_NIGHT -> R.string.theme_night
+            else -> R.string.theme_auto
+        }
+    )
 
     private fun radarAreaLabel(): String = getString(
         when (PreferencesManager.radarZoom) {
