@@ -1,3 +1,6 @@
+<img width="3840" height="2160" alt="image" src="https://github.com/user-attachments/assets/c788bfaa-eedd-430e-b7a3-2fc857fb0340" />
+<img width="3840" height="2160" alt="image" src="https://github.com/user-attachments/assets/4f1b5a87-19e7-4c43-9a21-94cb62f94e74" />
+
 # Weather Wallpaper for Projectivy
 
 A wallpaper provider plugin that turns your Projectivy Launcher home screen into
