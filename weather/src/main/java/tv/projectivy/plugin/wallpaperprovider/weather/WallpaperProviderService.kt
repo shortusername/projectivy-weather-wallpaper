@@ -16,10 +16,16 @@ class WallpaperProviderService : Service() {
         private const val PROJECTIVY_PACKAGE = "com.spocky.projengmenu"
         /** Don't hit the API more than once per 10 min even if we're called more often. */
         private const val MIN_FETCH_INTERVAL_MS = 10 * 60 * 1000L
+        /** Alerts change faster than conditions, but not that fast. */
+        private const val ALERT_INTERVAL_MS = 5 * 60 * 1000L
+        /** Frames in an animated radar loop. Seven spans ~2h of observations. */
+        private const val RADAR_FRAME_COUNT = 7
     }
 
     private var lastFetchAt = 0L
     private var cached: OpenMeteoClient.Conditions? = null
+    private var lastAlertAt = 0L
+    private var cachedAlert: NwsAlertsClient.Alert? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -37,10 +43,16 @@ class WallpaperProviderService : Service() {
 
             val conditions = currentConditions() ?: return emptyList()
 
+            // Alerts are drawn by both render paths, so resolve before either.
+            WeatherRenderer.currentAlert = currentAlert()
+
             return try {
                 // An animated pack is rendered by the launcher, not by us, so the
                 // panel gets embedded into the animation instead of composited.
                 animatedWallpaper(conditions)?.let { return listOf(it) }
+
+                // Animated radar: same constraint, solved by embedding the frames.
+                animatedRadar(conditions)?.let { return listOf(it) }
 
                 val file = WeatherRenderer.render(
                     this@WallpaperProviderService,
@@ -147,6 +159,58 @@ class WallpaperProviderService : Service() {
         )
     } catch (e: Exception) {
         null
+    }
+
+    /**
+     * Builds the animated radar loop when enabled. Returns null on any failure
+     * so the caller falls through to the normal still wallpaper.
+     */
+    private fun animatedRadar(c: OpenMeteoClient.Conditions): Wallpaper? {
+        if (!PreferencesManager.animateRadar) return null
+        if (PreferencesManager.backgroundSource != Backgrounds.SOURCE_RADAR) return null
+
+        return try {
+            val baseMap = Backgrounds.radarBaseMap(this, 1920, 1080) ?: return null
+            val scene = WeatherRenderer.composeScene(
+                this, c, PreferencesManager.displayLabel, baseMap, WeatherRenderer.currentAlert
+            )
+            baseMap.recycle()
+
+            val frames = Backgrounds.radarFrames(this, 1920, 1080, RADAR_FRAME_COUNT)
+            if (frames.isEmpty()) { scene.recycle(); return null }
+
+            val loop = RadarAnimator.build(cacheDir, scene, frames)
+            scene.recycle()
+            frames.forEach { it.recycle() }
+            if (loop == null) return null
+
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", loop)
+            grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+            Wallpaper(
+                uri = uri.toString(),
+                type = WallpaperType.LOTTIE,
+                displayMode = WallpaperDisplayMode.CROP,
+                title = OpenMeteoClient.describe(c.weatherCode),
+                source = "RainViewer",
+                author = "RainViewer"
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Most severe active alert, refreshed independently of conditions. */
+    private fun currentAlert(): NwsAlertsClient.Alert? {
+        if (!PreferencesManager.showAlerts) return null
+        val now = System.currentTimeMillis()
+        if (now - lastAlertAt > ALERT_INTERVAL_MS) {
+            cachedAlert = NwsAlertsClient.fetch(
+                PreferencesManager.latitude, PreferencesManager.longitude
+            ).firstOrNull()
+            lastAlertAt = now
+        }
+        return cachedAlert
     }
 
     private fun currentConditions(): OpenMeteoClient.Conditions? {

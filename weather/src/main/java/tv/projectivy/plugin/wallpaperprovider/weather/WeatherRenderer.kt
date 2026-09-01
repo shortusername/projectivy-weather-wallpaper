@@ -39,6 +39,14 @@ object WeatherRenderer {
     private lateinit var light: Typeface
     private lateinit var medium: Typeface
 
+    /**
+     * Set by the service before rendering. Kept here rather than threaded
+     * through every signature because both render paths need it and neither
+     * owns the fetch.
+     */
+    @Volatile
+    var currentAlert: NwsAlertsClient.Alert? = null
+
     private fun gradientFor(bucket: String, isDay: Boolean): Pair<Int, Int> = when {
         !isDay -> Color.parseColor("#0B1026") to Color.parseColor("#1C2541")
         bucket == "clear" -> Color.parseColor("#1E6FB8") to Color.parseColor("#7EC8E3")
@@ -74,12 +82,42 @@ object WeatherRenderer {
 
         // Scrim still needed: contributed art can be any brightness.
         drawScrim(canvas, strong = true)
-        drawPanel(canvas, c, placeLabel, attribution = null)
+        drawPanel(canvas, c, placeLabel, attribution = null, alert = currentAlert)
 
         val out = File(context.cacheDir, OVERLAY_NAME)
         FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
         bitmap.recycle()
         return out
+    }
+
+    /**
+     * The full still scene as a Bitmap, over a supplied background.
+     *
+     * Used by the animated radar path: the map and panel are composited once
+     * here, then RadarAnimator layers moving precipitation on top.
+     */
+    fun composeScene(
+        context: Context,
+        c: OpenMeteoClient.Conditions,
+        placeLabel: String,
+        background: Bitmap?,
+        alert: NwsAlertsClient.Alert?
+    ): Bitmap {
+        val bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+
+        light = Typeface.create("sans-serif-light", Typeface.NORMAL)
+        medium = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+
+        if (background != null) {
+            canvas.drawBitmap(background, 0f, 0f, null)
+            drawScrim(canvas, strong = true)
+        } else {
+            SceneBackgrounds.draw(canvas, W, H, c)
+            drawScrim(canvas, strong = false)
+        }
+        drawPanel(canvas, c, placeLabel, "Radar: RainViewer \u00B7 Map: Natural Earth", alert)
+        return bitmap
     }
 
     fun render(context: Context, c: OpenMeteoClient.Conditions, placeLabel: String): File {
@@ -118,7 +156,7 @@ object WeatherRenderer {
             drawScrim(canvas, strong = false)
         }
 
-        drawPanel(canvas, c, placeLabel, attribution)
+        drawPanel(canvas, c, placeLabel, attribution, currentAlert)
 
         val out = File(context.cacheDir, OUTPUT_NAME)
         FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -131,9 +169,12 @@ object WeatherRenderer {
         canvas: Canvas,
         c: OpenMeteoClient.Conditions,
         placeLabel: String,
-        attribution: String?
+        attribution: String?,
+        alert: NwsAlertsClient.Alert? = null
     ) {
-        var y = MARGIN + 60f
+        alert?.let { drawAlertBanner(canvas, it) }
+
+        var y = MARGIN + 60f + (if (alert != null) 74f else 0f)
 
         canvas.drawText(placeLabel.uppercase(), MARGIN, y, paint(38f, medium, 205))
         y += 190f
@@ -207,6 +248,32 @@ object WeatherRenderer {
 
         attribution?.let {
             canvas.drawText(it, MARGIN, H - 46f, paint(26f, light, 130))
+        }
+    }
+
+    /**
+     * Severe weather banner, top of screen and full width.
+     *
+     * Deliberately the loudest element on the wallpaper: if there's a tornado
+     * warning out, that matters more than the temperature does.
+     */
+    private fun drawAlertBanner(canvas: Canvas, alert: NwsAlertsClient.Alert) {
+        val h = 92f
+        val bg = Paint().apply { color = NwsAlertsClient.colorFor(alert.severity) }
+        canvas.drawRect(0f, 0f, W.toFloat(), h, bg)
+
+        // Bright rule along the bottom edge lifts it off the wallpaper.
+        canvas.drawRect(0f, h - 4f, W.toFloat(), h, Paint().apply {
+            color = Color.argb(190, 255, 255, 255)
+        })
+
+        val title = paint(42f, medium)
+        canvas.drawText(alert.event.uppercase(), MARGIN, 60f, title)
+
+        val until = NwsAlertsClient.untilLabel(alert.ends)
+        if (until.isNotEmpty()) {
+            val p = paint(32f, light, 210)
+            canvas.drawText(until, W - MARGIN - p.measureText(until), 58f, p)
         }
     }
 

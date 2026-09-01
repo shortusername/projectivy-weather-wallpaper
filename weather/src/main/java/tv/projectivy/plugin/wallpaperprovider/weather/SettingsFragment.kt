@@ -39,6 +39,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val SUB_LBL_MANY = 113L
 
         private const val ACTION_ID_LABELS = 19L
+        private const val ACTION_ID_ALERTS = 20L
+        private const val ACTION_ID_ANIMATE = 21L
 
         private const val SUB_AREA_WIDE = 120L
         private const val SUB_AREA_REGIONAL = 121L
@@ -193,6 +195,11 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .description(R.string.setting_pack_refresh_desc)
                 .build()
         )
+
+        actions.add(checkbox(ACTION_ID_ALERTS, R.string.setting_alerts_title,
+            R.string.setting_alerts_desc, PreferencesManager.showAlerts))
+        actions.add(checkbox(ACTION_ID_ANIMATE, R.string.setting_animate_title,
+            R.string.setting_animate_desc, PreferencesManager.animateRadar))
 
         actions.add(checkbox(ACTION_ID_HOURLY, R.string.setting_hourly_title,
             R.string.setting_hourly_desc, PreferencesManager.showHourly))
@@ -369,6 +376,19 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 PreferencesManager.useMetric = action.isChecked
                 action.description = unitsLabel()
                 notifyActionChanged(findActionPositionById(ACTION_ID_UNITS))
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_ALERTS -> {
+                PreferencesManager.showAlerts = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_ANIMATE -> {
+                PreferencesManager.animateRadar = action.isChecked
+                if (action.isChecked &&
+                    PreferencesManager.backgroundSource != Backgrounds.SOURCE_RADAR
+                ) {
+                    toast(getString(R.string.toast_animate_needs_radar))
+                }
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
             ACTION_ID_HOURLY -> {

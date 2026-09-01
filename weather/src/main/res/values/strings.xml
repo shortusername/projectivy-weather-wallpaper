@@ -12,6 +12,12 @@
     <string name="setting_longitude_title">Longitude</string>
     <string name="setting_place_title">Location name</string>
     <string name="setting_units_title">Use metric units</string>
+    <string name="setting_alerts_title">Severe weather alerts</string>
+    <string name="setting_alerts_desc">Banner for active NWS warnings (US only)</string>
+    <string name="setting_animate_title">Animate radar</string>
+    <string name="setting_animate_desc">Loop the last two hours of precipitation</string>
+    <string name="toast_animate_needs_radar">Set the background to Live radar to see this</string>
+
     <string name="setting_hourly_title">Show hourly forecast</string>
     <string name="setting_hourly_desc">Next 6 hours with temperature and rain chance</string>
     <string name="setting_daily_title">Show daily forecast</string>

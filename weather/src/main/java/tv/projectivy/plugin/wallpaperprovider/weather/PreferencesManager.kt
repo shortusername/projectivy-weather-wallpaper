@@ -33,6 +33,8 @@ object PreferencesManager {
     const val KEY_DEMO_MODE = "demoMode"
     const val KEY_DEMO_LABEL = "demoLabel"
     const val KEY_LABEL_DENSITY = "labelDensity"
+    const val KEY_SHOW_ALERTS = "showAlerts"
+    const val KEY_ANIMATE_RADAR = "animateRadar"
     const val KEY_BASEMAP_URL = "basemapUrl"
     const val KEY_BASEMAP_ATTRIBUTION = "basemapAttribution"
 
@@ -110,6 +112,16 @@ object PreferencesManager {
         get() = prefs.getString(KEY_SELECTED_PACK, null) ?: ""
         set(v) = prefs.edit().putString(KEY_SELECTED_PACK, v).apply()
 
+    /** Severe weather banner from the US National Weather Service. */
+    var showAlerts: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_ALERTS, true)
+        set(v) = prefs.edit().putBoolean(KEY_SHOW_ALERTS, v).apply()
+
+    /** Animate the radar background as a loop of recent observations. */
+    var animateRadar: Boolean
+        get() = prefs.getBoolean(KEY_ANIMATE_RADAR, false)
+        set(v) = prefs.edit().putBoolean(KEY_ANIMATE_RADAR, v).apply()
+
     const val LABELS_OFF = "off"
     const val LABELS_FEW = "few"
     const val LABELS_BALANCED = "balanced"
@@ -176,6 +188,8 @@ object PreferencesManager {
         put(KEY_DEMO_MODE, demoMode)
         put(KEY_DEMO_LABEL, demoLabel)
         put(KEY_LABEL_DENSITY, labelDensity)
+        put(KEY_SHOW_ALERTS, showAlerts)
+        put(KEY_ANIMATE_RADAR, animateRadar)
         put(KEY_BASEMAP_URL, basemapUrl)
         put(KEY_BASEMAP_ATTRIBUTION, basemapAttribution)
         // Deliberately not exported: an API key shouldn't travel in a settings
@@ -200,6 +214,8 @@ object PreferencesManager {
             if (json.has(KEY_DEMO_MODE)) demoMode = json.getBoolean(KEY_DEMO_MODE)
             if (json.has(KEY_DEMO_LABEL)) demoLabel = json.getString(KEY_DEMO_LABEL)
             if (json.has(KEY_LABEL_DENSITY)) labelDensity = json.getString(KEY_LABEL_DENSITY)
+            if (json.has(KEY_SHOW_ALERTS)) showAlerts = json.getBoolean(KEY_SHOW_ALERTS)
+            if (json.has(KEY_ANIMATE_RADAR)) animateRadar = json.getBoolean(KEY_ANIMATE_RADAR)
             if (json.has(KEY_BASEMAP_URL)) basemapUrl = json.getString(KEY_BASEMAP_URL)
             if (json.has(KEY_BASEMAP_ATTRIBUTION)) basemapAttribution = json.getString(KEY_BASEMAP_ATTRIBUTION)
         } catch (e: Exception) {

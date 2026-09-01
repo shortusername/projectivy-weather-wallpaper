@@ -64,7 +64,7 @@ object Backgrounds {
             SOURCE_PACK -> packImage(context, c, width, height)
             SOURCE_LOCAL -> localPhoto(context, c, width, height)?.let { it to null }
             SOURCE_STOCK -> stockPhoto(c, width, height)
-            SOURCE_RADAR -> radarMap(context, width, height)?.let {
+            SOURCE_RADAR -> radarMap(context, width, height, includeRadar = true)?.let {
                 it to "Radar: RainViewer · Map: © OpenStreetMap contributors"
             }
             else -> null
@@ -195,7 +195,12 @@ object Backgrounds {
      * template from a provider whose terms allow app use. Without one, radar
      * draws over a dark backdrop: less legible, but nobody's servers get abused.
      */
-    private fun radarMap(context: Context, width: Int, height: Int): Bitmap? {
+    private fun radarMap(
+        context: Context,
+        width: Int,
+        height: Int,
+        includeRadar: Boolean = true
+    ): Bitmap? {
         // RainViewer's public tiles stop at zoom 7 — above that every request
         // returns an identical "Zoom Level Not Supported" placeholder image.
         val zoom = PreferencesManager.radarZoom.coerceIn(4, 7)
@@ -300,6 +305,7 @@ object Backgrounds {
                         }
                 }
 
+                if (!includeRadar) continue
                 getBytes("$host$latestPath/$tileSize/$zoom/$wrappedX/$ty/2/1_1.png")
                     ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
                     ?.let { radar ->
@@ -363,6 +369,96 @@ object Backgrounds {
                 "Radar: RainViewer \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)"
             else -> "Radar: RainViewer"
         }
+    }
+
+    // ------------------------------------------------------------ animation
+
+    /** The radar map with no precipitation drawn: basemap, borders, labels. */
+    fun radarBaseMap(context: Context, width: Int, height: Int): Bitmap? =
+        try { radarMap(context, width, height, includeRadar = false) }
+        catch (e: Exception) { Log.w(TAG, "Base map failed: ${e.message}"); null }
+
+    /**
+     * The most recent radar observations as transparent overlays, oldest first.
+     *
+     * RainViewer publishes roughly 13 past frames covering two hours. Taking
+     * every other one gives a smoother-feeling loop over the same span for half
+     * the payload.
+     */
+    fun radarFrames(context: Context, width: Int, height: Int, count: Int): List<Bitmap> {
+        val maps = getJson("https://api.rainviewer.com/public/weather-maps.json")
+            ?: return emptyList()
+        val host = maps.optString("host", "https://tilecache.rainviewer.com")
+        val past = maps.optJSONObject("radar")?.optJSONArray("past") ?: return emptyList()
+
+        val paths = mutableListOf<String>()
+        var i = past.length() - 1
+        while (i >= 0 && paths.size < count) {
+            past.optJSONObject(i)?.optString("path")?.takeIf { it.isNotBlank() }
+                ?.let { paths.add(it) }
+            i -= 2
+        }
+        paths.reverse()
+
+        return paths.mapNotNull { path ->
+            try { radarLayerOnly(context, width, height, host, path) }
+            catch (e: Exception) { Log.w(TAG, "Frame failed: ${e.message}"); null }
+        }
+    }
+
+    /** Precipitation only, on a transparent canvas, matching radarMap's grid. */
+    private fun radarLayerOnly(
+        context: Context,
+        width: Int,
+        height: Int,
+        host: String,
+        path: String
+    ): Bitmap? {
+        val zoom = PreferencesManager.radarZoom.coerceIn(4, 7)
+        val lat = PreferencesManager.latitude
+        val lon = PreferencesManager.longitude
+
+        val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+
+        val n = 1 shl zoom
+        val tileSize = 256
+        val cxWorld = (lon + 180.0) / 360.0 * n * tileSize
+        val latRad = Math.toRadians(lat)
+        val cyWorld = (1.0 - ln(tan(latRad) + 1.0 / Math.cos(latRad)) / PI) / 2.0 * n * tileSize
+
+        val scale = width / (3.0 * tileSize)
+        val viewW = width / scale
+        val viewH = height / scale
+        val left = cxWorld - viewW * 0.62
+        val top = cyWorld - viewH * 0.54
+
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply { alpha = 225 }
+        var drew = 0
+
+        for (tx in floor(left / tileSize).toInt()..floor((left + viewW) / tileSize).toInt()) {
+            for (ty in floor(top / tileSize).toInt()..floor((top + viewH) / tileSize).toInt()) {
+                if (ty < 0 || ty >= n) continue
+                val wrappedX = ((tx % n) + n) % n
+                val dstLeft = ((tx * tileSize - left) * scale).toFloat()
+                val dstTop = ((ty * tileSize - top) * scale).toFloat()
+                val dst = RectF(
+                    dstLeft, dstTop,
+                    dstLeft + (tileSize * scale).toFloat(),
+                    dstTop + (tileSize * scale).toFloat()
+                )
+                getBytes("$host$path/$tileSize/$zoom/$wrappedX/$ty/2/1_1.png")
+                    ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                    ?.let { tile ->
+                        canvas.drawBitmap(tile, null, dst, paint)
+                        tile.recycle()
+                        drew++
+                    }
+            }
+        }
+
+        if (drew == 0) { out.recycle(); return null }
+        return out
     }
 
     // ---------------------------------------------------------------- shared
