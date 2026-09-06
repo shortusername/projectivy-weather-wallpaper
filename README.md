@@ -13,23 +13,25 @@ no tracking.
 
 ## Install
 
-**Easiest, no computer needed.** Install **Downloader** by AFTVnews on the TV
-and enter code **6704396**. That points at the latest release and stays valid
-for future ones.
-
-**Or side-load the APK** from the [latest release][releases] by USB or adb.
-
-Then in Projectivy: **Settings → Appearance → Wallpaper → Launcher wallpaper →
-Plugins → Weather Wallpaper**.
+**Side-load the APK** from the [latest release][releases] by USB or adb.
 
 **Or build it yourself** — recommended, and it takes about two minutes with no
 local toolchain. Fork the repo, go to **Actions → Build APK → Run workflow**, and
 download the artifact. The released APK is debug-signed, so building it yourself
 means not having to trust a stranger's binary.
 
+Then in Projectivy: **Settings → Appearance → Wallpaper → Launcher wallpaper →
+Plugins → Weather Wallpaper**.
+
 On first run the plugin estimates your location from your IP, so it works
 immediately. Correct it in settings via the gear icon beside the plugin name —
 locations are added by name, not coordinates.
+
+> **Downloader code coming soon.** Code **6704396** is registered with AFTVnews
+> and points at the latest release, so it will keep working for future versions.
+> It won't resolve until the first stable release is tagged. Once it does,
+> installing needs no computer at all: install **Downloader** by AFTVnews on the
+> TV and enter the code.
 
 ## What it shows
 
