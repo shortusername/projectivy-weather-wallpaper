@@ -330,8 +330,9 @@ object Backgrounds {
 
                 if (!includeRadar) continue
                 getBytes("$host$latestPath/$tileSize/$zoom/$wrappedX/$ty/2/1_1.png")
-                    ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                    ?.let { decodeMutable(it) }
                     ?.let { radar ->
+                        if (PreferencesManager.safeRadarPalette) RadarPalette.apply(radar)
                         val glowDst = RectF(
                             dst.left - 3f, dst.top - 3f, dst.right + 3f, dst.bottom + 3f
                         )
@@ -392,6 +393,103 @@ object Backgrounds {
                 "Radar: RainViewer \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)"
             else -> "Radar: RainViewer"
         }
+    }
+
+    /**
+     * The last composed background, kept so a frequent re-render doesn't refetch.
+     *
+     * Without this, enabling the clock — which re-renders every minute — would
+     * hit RainViewer sixty times an hour instead of four. One 1080p bitmap
+     * resident is about 8 MB, which is the price of not abusing someone else's
+     * tile server.
+     */
+    private var cachedBackground: Bitmap? = null
+    private var cachedBackgroundKey: String? = null
+    private var cachedBackgroundAt = 0L
+    private const val BACKGROUND_TTL_MS = 9 * 60 * 1000L
+
+    /**
+     * Composed background, reused while still fresh.
+     *
+     * The key covers everything that changes what the background looks like, so
+     * a settings change or a new location invalidates it immediately rather
+     * than waiting for the TTL.
+     */
+    fun resolveCached(
+        context: Context,
+        source: String,
+        c: OpenMeteoClient.Conditions,
+        width: Int,
+        height: Int,
+        phase: ThemeResolver.Phase
+    ): Pair<Bitmap, String?>? {
+        val key = listOf(
+            source, phase.name, width, height,
+            PreferencesManager.currentLatitude, PreferencesManager.currentLongitude,
+            PreferencesManager.radarZoom, PreferencesManager.labelDensity,
+            PreferencesManager.safeRadarPalette, PreferencesManager.selectedPack,
+            OpenMeteoClient.bucket(c.weatherCode)
+        ).joinToString("|")
+
+        val now = System.currentTimeMillis()
+        val cached = cachedBackground
+        if (cached != null && !cached.isRecycled &&
+            cachedBackgroundKey == key && now - cachedBackgroundAt < BACKGROUND_TTL_MS
+        ) {
+            // A copy, because callers recycle what they're given.
+            return cached.copy(Bitmap.Config.ARGB_8888, false) to null
+        }
+
+        val fresh = resolve(context, source, c, width, height, phase) ?: return null
+        cachedBackground?.recycle()
+        cachedBackground = fresh.first.copy(Bitmap.Config.ARGB_8888, false)
+        cachedBackgroundKey = key
+        cachedBackgroundAt = now
+        return fresh
+    }
+
+    fun clearBackgroundCache() {
+        cachedBackground?.recycle()
+        cachedBackground = null
+        cachedBackgroundKey = null
+    }
+
+    /** Video extensions accepted from the local folder and from packs. */
+    private val VIDEO_EXT = setOf("mp4", "m4v", "webm", "mkv")
+
+    /**
+     * A matching video from the user's own folder, if there is one.
+     *
+     * Videos are returned as a file for the launcher to play rather than
+     * decoded here, so they can't carry the weather panel — the launcher hands
+     * the URI to a media player and draws nothing over it. The caller warns
+     * about that; there's no way around it with a single-URI interface.
+     *
+     * Naming follows the same convention as local photos: a filename containing
+     * the phase or condition wins over an unnamed one.
+     */
+    fun localVideo(context: Context, c: OpenMeteoClient.Conditions,
+                   phase: ThemeResolver.Phase): File? = try {
+        val files = localFolder(context).listFiles { f ->
+            f.isFile && f.extension.lowercase() in VIDEO_EXT
+        }?.toList().orEmpty()
+        if (files.isEmpty()) return null
+
+        val bucket = OpenMeteoClient.bucket(c.weatherCode)
+        val exact = files.filter { it.name.lowercase().contains(phase.key) }
+        val coarse = if (phase.isDay) "day" else "night"
+        val pool = exact.ifEmpty {
+            files.filter {
+                val n = it.name.lowercase()
+                n.contains(bucket) || n.contains(coarse)
+            }
+        }.ifEmpty { files }
+
+        // Rotate over time so successive refreshes differ, as with photos.
+        pool[((System.currentTimeMillis() / 900_000L) % pool.size).toInt()]
+    } catch (t: Throwable) {
+        Log.w(TAG, "Local video lookup failed: ${t.message}")
+        null
     }
 
     // ------------------------------------------------------------ animation
@@ -512,8 +610,9 @@ object Backgrounds {
                     dstTop + (tileSize * scale).toFloat()
                 )
                 getBytes("$host$path/$tileSize/$zoom/$wrappedX/$ty/2/1_1.png")
-                    ?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                    ?.let { decodeMutable(it) }
                     ?.let { tile ->
+                        if (PreferencesManager.safeRadarPalette) RadarPalette.apply(tile)
                         canvas.drawBitmap(tile, null, dst, paint)
                         tile.recycle()
                         drew++
@@ -526,6 +625,16 @@ object Backgrounds {
     }
 
     // ---------------------------------------------------------------- shared
+
+    /**
+     * Mutable decode, so the palette remap can rewrite pixels in place rather
+     * than allocating a second bitmap per tile.
+     */
+    private fun decodeMutable(bytes: ByteArray): Bitmap? =
+        BitmapFactory.decodeByteArray(
+            bytes, 0, bytes.size,
+            BitmapFactory.Options().apply { inMutable = true }
+        )
 
     private fun decodeScaled(bytes: ByteArray, width: Int, height: Int): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }

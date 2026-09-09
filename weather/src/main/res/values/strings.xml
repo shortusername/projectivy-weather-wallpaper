@@ -29,10 +29,28 @@
     <string name="cycle_every">Each refresh \u2014 about every 15 minutes</string>
 
     <string name="setting_units_title">Use metric units</string>
+    <string name="setting_nowcast_title">Rain and snow timing</string>
+    <string name="setting_nowcast_desc">Shows \"starting in 25 min\" when precipitation is imminent</string>
+    <string name="setting_advisories_title">Helpful advice</string>
+    <string name="setting_advisories_desc">Lines like \"frost likely tonight\", \"dry until 4 PM\" or \"good drying day\"</string>
+    <string name="setting_yesterday_title">Compare to yesterday</string>
+    <string name="setting_yesterday_desc">Adds how much warmer or cooler today is</string>
+    <string name="setting_air_title">Air quality and pollen</string>
+    <string name="setting_air_desc">Adds AQI to the stats line, and a warning when air quality is poor. Pollen where available.</string>
+    <string name="setting_aurora_title">Aurora watch</string>
+    <string name="setting_aurora_desc">A line when the K-index makes aurora plausible at your latitude</string>
+    <string name="setting_safe_radar_title">Colour-blind friendly radar</string>
+    <string name="setting_safe_radar_desc">Recolours radar so heavy rain stays distinguishable from light</string>
+
     <string name="setting_alerts_title">Severe weather alerts</string>
     <string name="setting_alerts_desc">Banner for active NWS warnings (US only)</string>
+    <string name="setting_experimental_title">Experimental features</string>
+    <string name="setting_experimental_desc">Reveal animation options that are known to fail on some devices. Animated radar renders blank on Nvidia Shield. Everything falls back to a still wallpaper.</string>
+
+    <string name="setting_precip_title">Animate rain and snow</string>
+    <string name="setting_precip_desc">Experimental \u2014 falling precipitation over the background when it\'s wet out</string>
     <string name="setting_animate_title">Animate radar</string>
-    <string name="setting_animate_desc">Loop the last two hours of precipitation</string>
+    <string name="setting_animate_desc">Experimental \u2014 loop the last two hours of precipitation</string>
     <string name="toast_animate_needs_radar">Set the background to Live radar to see this</string>
 
     <string name="setting_hourly_title">Show hourly forecast</string>
@@ -65,6 +83,54 @@
     <string name="setting_basemap_attr_title">Basemap credit line</string>
     <string name="basemap_attr_unset">Not set</string>
     <string name="toast_osm_not_permitted">OpenStreetMap\'s tile policy doesn\'t allow app use \u2014 requests will be blocked</string>
+
+    <string name="setting_clock_title">Show a clock</string>
+    <string name="setting_clock_desc">Draws the time on the wallpaper. Re-renders every minute to stay accurate, which may interfere with your screensaver starting.</string>
+    <string name="setting_clock_position_title">Clock position</string>
+    <string name="clock_pos_top_right">Top right</string>
+    <string name="clock_pos_top_centre">Top centre</string>
+    <string name="clock_pos_with_panel">Above the location name</string>
+
+    <string name="setting_clock_size_title">Clock size</string>
+    <string name="clock_size_small">Small</string>
+    <string name="clock_size_medium">Medium</string>
+    <string name="clock_size_large">Large \u2014 easiest from across the room</string>
+
+    <string name="setting_clock_style_title">Clock style</string>
+    <string name="clock_style_light">Digital, light</string>
+    <string name="clock_style_bold">Digital, bold</string>
+    <string name="clock_style_analogue">Analogue \u2014 best paired with Large</string>
+
+    <string name="setting_clock_hours_title">Hour format</string>
+    <string name="clock_hours_system">Follow the system</string>
+    <string name="clock_hours_12">12 hour</string>
+    <string name="clock_hours_24">24 hour</string>
+
+    <string name="setting_clock_date_title">Show the date under the clock</string>
+    <string name="setting_clock_date_desc">Adds the weekday and date</string>
+    <string name="toast_clock_hint">Turn off Projectivy\'s own clock in Appearance, or you\'ll see two</string>
+
+    <string name="setting_safe_area_title">Where your app row starts</string>
+    <string name="setting_safe_area_desc">%1$d%% down the screen</string>
+    <string name="safe_area_option">%1$d%%</string>
+    <string name="safe_area_hint_tall">For tall or doubled app rows</string>
+    <string name="safe_area_hint_default">Matches Projectivy\'s stock layout</string>
+    <string name="safe_area_hint_short">For a compact or hidden app row</string>
+
+    <string name="setting_idle_full_title">Use the full screen when idle</string>
+    <string name="setting_idle_full_desc">Once the launcher goes idle nothing covers the wallpaper, so the forecast can use the whole frame</string>
+
+    <string name="setting_scale_title">Readout size</string>
+    <string name="setting_scale_desc">%1$d%%</string>
+    <string name="scale_option">%1$d%%</string>
+    <string name="scale_hint_small">More room for the background</string>
+    <string name="scale_hint_default">Default</string>
+    <string name="scale_hint_large">May hide the forecast strips</string>
+
+    <string name="setting_holiday_title">Holiday themes</string>
+    <string name="holiday_off">Off</string>
+    <string name="holiday_none">On \u2014 no holiday near today</string>
+    <string name="holiday_active">On \u2014 %1$s</string>
 
     <string name="setting_demo_title">Demo mode</string>
     <string name="setting_demo_desc">Hide your location for screenshots and demos</string>
@@ -124,6 +190,7 @@
     <string name="toast_pack_refreshed">Pack list updated</string>
     <string name="toast_pack_refresh_failed">Couldn\'t reach the pack list</string>
     <string name="toast_video_no_overlay">Video packs can\'t show the weather readout</string>
+    <string name="toast_lottie_experimental">Animated packs need Experimental features turned on</string>
 
     <string name="setting_unsplash_title">Unsplash access key</string>
     <string name="unsplash_unset">Not set — required for stock photos</string>
@@ -134,6 +201,7 @@
     <string name="radar_area_state">State \u2014 your state and around it</string>
     <string name="radar_area_local">Local \u2014 your metro area</string>
 
-    <string name="toast_local_folder">Put images in: %1$s</string>
+    <string name="toast_local_folder">Put images or videos in: %1$s</string>
+    <string name="toast_local_video_note">Videos play without the weather readout</string>
     <string name="toast_needs_unsplash_key">Add an Unsplash access key to use stock photos</string>
 </resources>

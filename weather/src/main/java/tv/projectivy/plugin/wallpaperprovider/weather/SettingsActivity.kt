@@ -50,6 +50,13 @@ class SettingsActivity : FragmentActivity() {
             PreferencesManager.useMetric = extras.getBoolean("useMetric")
             changed = true
         }
+        // Test hook for date-gated seasonal themes: --es forceDate "12-24".
+        // Pass an empty string to clear it. Without this the winter themes
+        // could only be exercised in winter, which is too late to find a bug.
+        extras.getString("forceDate")?.let {
+            PreferencesManager.forceDate = it.trim()
+            changed = true
+        }
 
         if (changed) requestWallpaperUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
         if (extras.getBoolean("close", false)) finish()

@@ -93,6 +93,7 @@ object Diagnostics {
     private fun settingsSnapshot(context: Context): String {
         PreferencesManager.init(context)
         val sb = StringBuilder()
+        sb.appendLine("Experimental features: ${PreferencesManager.experimentalFeatures}")
         sb.appendLine("Background source: ${PreferencesManager.backgroundSource}")
         sb.appendLine("Theme mode: ${PreferencesManager.themeMode}")
         sb.appendLine("Radar area (zoom): ${PreferencesManager.radarZoom}")

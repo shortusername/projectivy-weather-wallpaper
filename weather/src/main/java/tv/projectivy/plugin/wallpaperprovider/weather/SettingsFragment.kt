@@ -52,6 +52,59 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_ADD_LOCATION = 26L
         private const val ACTION_ID_LOCATIONS = 27L
         private const val ACTION_ID_CYCLE = 28L
+        private const val ACTION_ID_HOLIDAY = 29L
+        private const val ACTION_ID_SCALE = 30L
+        private const val ACTION_ID_ANIMATE_PRECIP = 31L
+        private const val ACTION_ID_EXPERIMENTAL = 32L
+        private const val ACTION_ID_NOWCAST = 33L
+        private const val ACTION_ID_AURORA = 34L
+        private const val ACTION_ID_YESTERDAY = 35L
+        private const val ACTION_ID_SAFE_RADAR = 36L
+        private const val ACTION_ID_AIR = 37L
+        private const val ACTION_ID_ADVISORIES = 38L
+        private const val ACTION_ID_CLOCK = 39L
+        private const val ACTION_ID_CLOCK_DATE = 40L
+        private const val ACTION_ID_CLOCK_POSITION = 41L
+        private const val ACTION_ID_CLOCK_SIZE = 42L
+        private const val ACTION_ID_CLOCK_STYLE = 43L
+        private const val ACTION_ID_CLOCK_HOURS = 44L
+
+        private const val SUB_CLOCK_POS_BASE = 5000L
+        private const val SUB_CLOCK_SIZE_BASE = 6000L
+        private const val SUB_CLOCK_STYLE_BASE = 7000L
+        private const val SUB_CLOCK_HOURS_BASE = 8000L
+        private const val SUB_SAFE_BASE = 9000L
+
+        private const val ACTION_ID_SAFE_AREA = 45L
+        private const val ACTION_ID_IDLE_FULL = 46L
+
+        /** Where the app row starts, as a percentage of screen height. */
+        private val SAFE_OPTIONS = listOf(70, 74, 78, 82, 88)
+
+        private val CLOCK_POSITIONS = listOf(
+            PreferencesManager.CLOCK_TOP_RIGHT to R.string.clock_pos_top_right,
+            PreferencesManager.CLOCK_TOP_CENTRE to R.string.clock_pos_top_centre,
+            PreferencesManager.CLOCK_WITH_PANEL to R.string.clock_pos_with_panel
+        )
+        private val CLOCK_SIZES = listOf(
+            PreferencesManager.CLOCK_SMALL to R.string.clock_size_small,
+            PreferencesManager.CLOCK_MEDIUM to R.string.clock_size_medium,
+            PreferencesManager.CLOCK_LARGE to R.string.clock_size_large
+        )
+        private val CLOCK_STYLES = listOf(
+            PreferencesManager.CLOCK_DIGITAL_LIGHT to R.string.clock_style_light,
+            PreferencesManager.CLOCK_DIGITAL_BOLD to R.string.clock_style_bold,
+            PreferencesManager.CLOCK_ANALOGUE to R.string.clock_style_analogue
+        )
+        private val CLOCK_HOUR_MODES = listOf(
+            PreferencesManager.CLOCK_HOURS_SYSTEM to R.string.clock_hours_system,
+            PreferencesManager.CLOCK_HOURS_12 to R.string.clock_hours_12,
+            PreferencesManager.CLOCK_HOURS_24 to R.string.clock_hours_24
+        )
+
+        /** Size options, offset so they don't collide with other sub-actions. */
+        private const val SUB_SCALE_BASE = 4000L
+        private val SCALE_OPTIONS = listOf(80, 90, 100, 110, 120)
 
         private const val SUB_CYCLE_OFF = 150L
         private const val SUB_CYCLE_EVERY = 151L
@@ -82,8 +135,16 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_BASEMAP = 17L
         private const val ACTION_ID_BASEMAP_ATTR = 18L
 
-        /** Pack sub-actions start here, offset well clear of the fixed ids. */
+        /**
+         * Sub-action id ranges, each 1000 wide.
+         *
+         * Tested with bounded ranges, never open-ended `>=`. An open-ended test
+         * on the lowest base swallows every range above it — which is exactly
+         * what made the location search results unusable: clicking one landed
+         * in the pack handler, matched nothing, and silently did nothing.
+         */
         private const val SUB_PACK_BASE = 1000L
+        private const val SUB_RANGE = 1000L
     }
 
     override fun onCreateGuidance(savedInstanceState: Bundle?): Guidance {
@@ -139,15 +200,29 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
-            GuidedAction.Builder(context)
-                .id(ACTION_ID_ADD_LOCATION)
-                .title(R.string.setting_add_location_title)
-                .description(R.string.setting_add_location_desc)
-                .editDescription("")
-                .descriptionEditable(true)
-                .build()
-        )
+        // When a search returned several matches, they're attached here so the
+        // action is bound with them present and can actually be opened.
+        val pending = searchResults
+        val addBuilder = GuidedAction.Builder(context)
+            .id(ACTION_ID_ADD_LOCATION)
+            .title(R.string.setting_add_location_title)
+            .editDescription("")
+            .descriptionEditable(true)
+        if (pending.size > 1) {
+            addBuilder
+                .description(getString(R.string.locations_pick_match, pending.size))
+                .subActions(
+                    pending.mapIndexed { i, place ->
+                        GuidedAction.Builder(context)
+                            .id(SUB_SEARCH_BASE + i)
+                            .title(place.label)
+                            .build()
+                    }
+                )
+        } else {
+            addBuilder.description(R.string.setting_add_location_desc)
+        }
+        actions.add(addBuilder.build())
 
         val extras = PreferencesManager.savedLocations
         actions.add(
@@ -274,10 +349,34 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
+        actions.add(checkbox(ACTION_ID_NOWCAST, R.string.setting_nowcast_title,
+            R.string.setting_nowcast_desc, PreferencesManager.showNowcast))
+        actions.add(checkbox(ACTION_ID_ADVISORIES, R.string.setting_advisories_title,
+            R.string.setting_advisories_desc, PreferencesManager.showAdvisories))
+        actions.add(checkbox(ACTION_ID_YESTERDAY, R.string.setting_yesterday_title,
+            R.string.setting_yesterday_desc, PreferencesManager.showYesterday))
+        actions.add(checkbox(ACTION_ID_AIR, R.string.setting_air_title,
+            R.string.setting_air_desc, PreferencesManager.showAirQuality))
+        actions.add(checkbox(ACTION_ID_AURORA, R.string.setting_aurora_title,
+            R.string.setting_aurora_desc, PreferencesManager.showAurora))
+        actions.add(checkbox(ACTION_ID_SAFE_RADAR, R.string.setting_safe_radar_title,
+            R.string.setting_safe_radar_desc, PreferencesManager.safeRadarPalette))
+
         actions.add(checkbox(ACTION_ID_ALERTS, R.string.setting_alerts_title,
             R.string.setting_alerts_desc, PreferencesManager.showAlerts))
-        actions.add(checkbox(ACTION_ID_ANIMATE, R.string.setting_animate_title,
-            R.string.setting_animate_desc, PreferencesManager.animateRadar))
+        actions.add(checkbox(ACTION_ID_EXPERIMENTAL, R.string.setting_experimental_title,
+            R.string.setting_experimental_desc, PreferencesManager.experimentalFeatures))
+
+        // The gated features are only listed when the gate is open. Showing
+        // them greyed out invites people to wonder what they're missing;
+        // hiding them keeps the list honest about what will actually do
+        // something.
+        if (PreferencesManager.experimentalFeatures) {
+            actions.add(checkbox(ACTION_ID_ANIMATE_PRECIP, R.string.setting_precip_title,
+                R.string.setting_precip_desc, PreferencesManager.animatePrecipStored))
+            actions.add(checkbox(ACTION_ID_ANIMATE, R.string.setting_animate_title,
+                R.string.setting_animate_desc, PreferencesManager.animateRadarStored))
+        }
 
         actions.add(checkbox(ACTION_ID_HOURLY, R.string.setting_hourly_title,
             R.string.setting_hourly_desc, PreferencesManager.showHourly))
@@ -361,6 +460,88 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
+        actions.add(checkbox(ACTION_ID_CLOCK, R.string.setting_clock_title,
+            R.string.setting_clock_desc, PreferencesManager.showClock))
+        // Clock sub-options only when there's a clock to configure.
+        if (PreferencesManager.showClock) {
+            actions.add(picker(ACTION_ID_CLOCK_POSITION, R.string.setting_clock_position_title,
+                SUB_CLOCK_POS_BASE, CLOCK_POSITIONS, PreferencesManager.clockPosition))
+            actions.add(picker(ACTION_ID_CLOCK_SIZE, R.string.setting_clock_size_title,
+                SUB_CLOCK_SIZE_BASE, CLOCK_SIZES, PreferencesManager.clockSize))
+            actions.add(picker(ACTION_ID_CLOCK_STYLE, R.string.setting_clock_style_title,
+                SUB_CLOCK_STYLE_BASE, CLOCK_STYLES, PreferencesManager.clockStyle))
+            actions.add(picker(ACTION_ID_CLOCK_HOURS, R.string.setting_clock_hours_title,
+                SUB_CLOCK_HOURS_BASE, CLOCK_HOUR_MODES, PreferencesManager.clockHours))
+            actions.add(checkbox(ACTION_ID_CLOCK_DATE, R.string.setting_clock_date_title,
+                R.string.setting_clock_date_desc, PreferencesManager.showClockDate))
+        }
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_SAFE_AREA)
+                .title(R.string.setting_safe_area_title)
+                .description(
+                    getString(R.string.setting_safe_area_desc,
+                        PreferencesManager.safeBottomPercent)
+                )
+                .subActions(
+                    SAFE_OPTIONS.mapIndexed { i, pct ->
+                        GuidedAction.Builder(context)
+                            .id(SUB_SAFE_BASE + i)
+                            .title(getString(R.string.safe_area_option, pct))
+                            .description(
+                                when (pct) {
+                                    70 -> getString(R.string.safe_area_hint_tall)
+                                    78 -> getString(R.string.safe_area_hint_default)
+                                    88 -> getString(R.string.safe_area_hint_short)
+                                    else -> ""
+                                }
+                            )
+                            .build()
+                    }
+                )
+                .build()
+        )
+
+        actions.add(checkbox(ACTION_ID_IDLE_FULL, R.string.setting_idle_full_title,
+            R.string.setting_idle_full_desc, PreferencesManager.idleFullFrame))
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_SCALE)
+                .title(R.string.setting_scale_title)
+                .description(
+                    getString(R.string.setting_scale_desc, PreferencesManager.panelScale)
+                )
+                .subActions(
+                    SCALE_OPTIONS.mapIndexed { i, pct ->
+                        GuidedAction.Builder(context)
+                            .id(SUB_SCALE_BASE + i)
+                            .title(getString(R.string.scale_option, pct))
+                            .description(
+                                when (pct) {
+                                    80 -> getString(R.string.scale_hint_small)
+                                    100 -> getString(R.string.scale_hint_default)
+                                    120 -> getString(R.string.scale_hint_large)
+                                    else -> ""
+                                }
+                            )
+                            .build()
+                    }
+                )
+                .build()
+        )
+
+        actions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_HOLIDAY)
+                .title(R.string.setting_holiday_title)
+                .description(holidayLabel())
+                .checkSetId(GuidedAction.CHECKBOX_CHECK_SET_ID)
+                .checked(PreferencesManager.holidayThemes)
+                .build()
+        )
+
         actions.add(checkbox(ACTION_ID_DEMO, R.string.setting_demo_title,
             R.string.setting_demo_desc, PreferencesManager.demoMode))
 
@@ -402,6 +583,31 @@ class SettingsFragment : GuidedStepSupportFragment() {
         )
     }
 
+    /**
+     * A one-of-many picker built from a value/label list.
+     *
+     * The four clock options share this rather than repeating the same twenty
+     * lines four times.
+     */
+    private fun picker(
+        id: Long,
+        titleRes: Int,
+        subBase: Long,
+        options: List<Pair<String, Int>>,
+        current: String
+    ): GuidedAction = GuidedAction.Builder(context)
+        .id(id)
+        .title(titleRes)
+        .description(
+            getString(options.firstOrNull { it.first == current }?.second ?: options[0].second)
+        )
+        .subActions(
+            options.mapIndexed { i, (_, labelRes) ->
+                GuidedAction.Builder(context).id(subBase + i).title(labelRes).build()
+            }
+        )
+        .build()
+
     private fun checkbox(id: Long, titleRes: Int, descRes: Int, checked: Boolean): GuidedAction =
         GuidedAction.Builder(context)
             .id(id)
@@ -416,7 +622,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
     override fun onSubGuidedActionClicked(action: GuidedAction): Boolean {
         // Pack selection is a separate id range from the background picker.
-        if (action.id >= SUB_PACK_BASE) {
+        if (action.id in SUB_PACK_BASE until SUB_PACK_BASE + SUB_RANGE) {
             val packs = PackManager.cachedPacks(requireContext())
             val index = (action.id - SUB_PACK_BASE).toInt()
             packs.getOrNull(index)?.let { chosen ->
@@ -428,15 +634,72 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 findActionById(ACTION_ID_BACKGROUND)?.description = backgroundLabel()
                 notifyActionChanged(findActionPositionById(ACTION_ID_BACKGROUND))
 
-                if (chosen.kind == PackManager.KIND_VIDEO) {
-                    toast(getString(R.string.toast_video_no_overlay))
+                when (chosen.kind) {
+                    PackManager.KIND_VIDEO ->
+                        toast(getString(R.string.toast_video_no_overlay))
+                    PackManager.KIND_LOTTIE ->
+                        if (!PreferencesManager.experimentalFeatures) {
+                            toast(getString(R.string.toast_lottie_experimental))
+                        }
                 }
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
             return true
         }
 
-        if (action.id >= SUB_SAVED_BASE) {
+        // Clock pickers, each in its own bounded range.
+        data class PickerSpec(
+            val base: Long, val actionId: Long,
+            val options: List<Pair<String, Int>>, val setter: (String) -> Unit
+        )
+        val clockPickers = listOf(
+            PickerSpec(SUB_CLOCK_POS_BASE, ACTION_ID_CLOCK_POSITION, CLOCK_POSITIONS)
+            { PreferencesManager.clockPosition = it },
+            PickerSpec(SUB_CLOCK_SIZE_BASE, ACTION_ID_CLOCK_SIZE, CLOCK_SIZES)
+            { PreferencesManager.clockSize = it },
+            PickerSpec(SUB_CLOCK_STYLE_BASE, ACTION_ID_CLOCK_STYLE, CLOCK_STYLES)
+            { PreferencesManager.clockStyle = it },
+            PickerSpec(SUB_CLOCK_HOURS_BASE, ACTION_ID_CLOCK_HOURS, CLOCK_HOUR_MODES)
+            { PreferencesManager.clockHours = it }
+        )
+        for (spec in clockPickers) {
+            if (action.id in spec.base until spec.base + SUB_RANGE) {
+                val index = (action.id - spec.base).toInt()
+                spec.options.getOrNull(index)?.let { (value, labelRes) ->
+                    spec.setter(value)
+                    findActionById(spec.actionId)?.description = getString(labelRes)
+                    notifyActionChanged(findActionPositionById(spec.actionId))
+                    pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+                }
+                return true
+            }
+        }
+
+        if (action.id in SUB_SAFE_BASE until SUB_SAFE_BASE + SUB_RANGE) {
+            val index = (action.id - SUB_SAFE_BASE).toInt()
+            SAFE_OPTIONS.getOrNull(index)?.let { pct ->
+                PreferencesManager.safeBottomPercent = pct
+                findActionById(ACTION_ID_SAFE_AREA)?.description =
+                    getString(R.string.setting_safe_area_desc, pct)
+                notifyActionChanged(findActionPositionById(ACTION_ID_SAFE_AREA))
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            return true
+        }
+
+        if (action.id in SUB_SCALE_BASE until SUB_SCALE_BASE + SUB_RANGE) {
+            val index = (action.id - SUB_SCALE_BASE).toInt()
+            SCALE_OPTIONS.getOrNull(index)?.let { pct ->
+                PreferencesManager.panelScale = pct
+                findActionById(ACTION_ID_SCALE)?.description =
+                    getString(R.string.setting_scale_desc, pct)
+                notifyActionChanged(findActionPositionById(ACTION_ID_SCALE))
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            return true
+        }
+
+        if (action.id in SUB_SAVED_BASE until SUB_SAVED_BASE + SUB_RANGE) {
             val index = (action.id - SUB_SAVED_BASE).toInt()
             val current = PreferencesManager.savedLocations
             current.getOrNull(index)?.let { removed ->
@@ -449,9 +712,11 @@ class SettingsFragment : GuidedStepSupportFragment() {
             return true
         }
 
-        if (action.id >= SUB_SEARCH_BASE) {
+        if (action.id in SUB_SEARCH_BASE until SUB_SEARCH_BASE + SUB_RANGE) {
             val index = (action.id - SUB_SEARCH_BASE).toInt()
-            searchResults.getOrNull(index)?.let { addPlace(it) }
+            val chosen = searchResults.getOrNull(index)
+            searchResults = emptyList()   // collapse the pick-list afterwards
+            chosen?.let { addPlace(it) } ?: rebuild()
             return true
         }
 
@@ -531,12 +796,17 @@ class SettingsFragment : GuidedStepSupportFragment() {
         notifyActionChanged(findActionPositionById(ACTION_ID_BACKGROUND))
 
         when (source) {
-            Backgrounds.SOURCE_LOCAL -> toast(
-                getString(
-                    R.string.toast_local_folder,
-                    Backgrounds.localFolder(requireContext()).absolutePath
+            Backgrounds.SOURCE_LOCAL -> {
+                toast(
+                    getString(
+                        R.string.toast_local_folder,
+                        Backgrounds.localFolder(requireContext()).absolutePath
+                    )
                 )
-            )
+                // Worth saying up front: a video in that folder wins over the
+                // stills, and takes the readout with it.
+                toast(getString(R.string.toast_local_video_note))
+            }
             Backgrounds.SOURCE_STOCK ->
                 if (PreferencesManager.unsplashKey.isBlank()) {
                     toast(getString(R.string.toast_needs_unsplash_key))
@@ -559,8 +829,58 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 notifyActionChanged(findActionPositionById(ACTION_ID_UNITS))
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
+            ACTION_ID_NOWCAST -> {
+                PreferencesManager.showNowcast = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_IDLE_FULL -> {
+                PreferencesManager.idleFullFrame = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_CLOCK -> {
+                PreferencesManager.showClock = action.isChecked
+                if (action.isChecked) toast(getString(R.string.toast_clock_hint))
+                // Reveals or hides the date sub-option.
+                rebuild()
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_CLOCK_DATE -> {
+                PreferencesManager.showClockDate = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_ADVISORIES -> {
+                PreferencesManager.showAdvisories = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_YESTERDAY -> {
+                PreferencesManager.showYesterday = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_AIR -> {
+                PreferencesManager.showAirQuality = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_AURORA -> {
+                PreferencesManager.showAurora = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_SAFE_RADAR -> {
+                PreferencesManager.safeRadarPalette = action.isChecked
+                RadarPalette.clearCache()
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
             ACTION_ID_ALERTS -> {
                 PreferencesManager.showAlerts = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_EXPERIMENTAL -> {
+                PreferencesManager.experimentalFeatures = action.isChecked
+                // Rebuild so the gated toggles appear or disappear.
+                rebuild()
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_ANIMATE_PRECIP -> {
+                PreferencesManager.animatePrecipitation = action.isChecked
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
             ACTION_ID_ANIMATE -> {
@@ -607,6 +927,12 @@ class SettingsFragment : GuidedStepSupportFragment() {
                         setActions(rebuilt)
                     }
                 }.start()
+            }
+            ACTION_ID_HOLIDAY -> {
+                PreferencesManager.holidayThemes = action.isChecked
+                action.description = holidayLabel()
+                notifyActionChanged(findActionPositionById(ACTION_ID_HOLIDAY))
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
             ACTION_ID_DEMO -> {
                 PreferencesManager.demoMode = action.isChecked
@@ -829,15 +1155,11 @@ class SettingsFragment : GuidedStepSupportFragment() {
                     }
                     results.size == 1 -> addPlace(results.first())
                     else -> {
-                        action.subActions = results.mapIndexed { i, place ->
-                            GuidedAction.Builder(context)
-                                .id(SUB_SEARCH_BASE + i)
-                                .title(place.label)
-                                .build()
-                        }
-                        action.description =
-                            getString(R.string.locations_pick_match, results.size)
-                        notifyActionChanged(findActionPositionById(ACTION_ID_ADD_LOCATION))
+                        // Rebuild rather than assigning subActions to the bound
+                        // action: Leanback decides an action's sub-action
+                        // affordance when it binds, so a list attached
+                        // afterwards opens but can't be operated.
+                        rebuild()
                         toast(getString(R.string.locations_pick_match, results.size))
                     }
                 }
@@ -859,6 +1181,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         PreferencesManager.savedLocations = existing + PreferencesManager.SavedLocation(
             place.shortLabel, place.latitude, place.longitude
         )
+        searchResults = emptyList()
         toast(getString(R.string.locations_added, place.label))
         rebuild()
         pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
@@ -869,6 +1192,16 @@ class SettingsFragment : GuidedStepSupportFragment() {
         val actions = mutableListOf<GuidedAction>()
         onCreateActions(actions, null)
         setActions(actions)
+    }
+
+    /** Names the theme that would apply right now, so the toggle isn't opaque. */
+    private fun holidayLabel(): String {
+        if (!PreferencesManager.holidayThemes) {
+            return getString(R.string.holiday_off)
+        }
+        val theme = HolidayThemes.current()
+        return if (theme == null) getString(R.string.holiday_none)
+        else getString(R.string.holiday_active, theme.label)
     }
 
     private fun cycleLabel(): String = getString(

@@ -68,9 +68,12 @@
             <!-- 15 min: weather doesn't move faster than that, and this bounds our API calls -->
             <meta-data android:name="itemsCacheDurationMillis" android:value="900000" />
 
-            <!-- TIME_ELAPSED only (1). Do NOT add CARD_FOCUSED (4) here: it fires
-                 roughly once a second during navigation and would re-render constantly. -->
-            <meta-data android:name="updateMode" android:value="1" />
+            <!-- Bitmask: TIME_ELAPSED (1) + LAUNCHER_IDLE_MODE_CHANGED (16).
+                 Idle changes are rare, so subscribing costs nothing and tells us
+                 when nothing is covering the wallpaper.
+                 Do NOT add CARD_FOCUSED (4) here: it fires roughly once a second
+                 during navigation and would re-render constantly. -->
+            <meta-data android:name="updateMode" android:value="17" />
         </service>
     </application>
 </manifest>

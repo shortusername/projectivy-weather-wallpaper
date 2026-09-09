@@ -22,7 +22,9 @@ import java.io.File
 object LottieComposer {
 
     private const val TAG = "LottieComposer"
-    private const val OUTPUT_NAME = "weather_composed.json"
+    // Timestamped: a constant URI is served from the launcher's image cache and
+    // the wallpaper never appears to change.
+    private const val OUTPUT_PREFIX = "weather_composed_"
     private const val OVERLAY_ASSET_ID = "wx_overlay"
 
     /** Panel PNG dimensions, matching WeatherRenderer's canvas. */
@@ -89,7 +91,11 @@ object LottieComposer {
         // on top of the contributed art rather than behind it.
         insertFirst(layers, overlayLayer)
 
-        val out = File(cacheDir, OUTPUT_NAME)
+        cacheDir.listFiles { f -> f.name.startsWith(OUTPUT_PREFIX) }
+            ?.sortedByDescending { it.lastModified() }
+            ?.drop(1)
+            ?.forEach { runCatching { it.delete() } }
+        val out = File(cacheDir, "$OUTPUT_PREFIX${System.currentTimeMillis()}.json")
         out.writeText(root.toString())
         out
     } catch (e: Exception) {

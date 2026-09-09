@@ -34,6 +34,22 @@ object OpenMeteoClient {
         val weatherCode: Int
     )
 
+    /**
+     * Near-term precipitation, from the 15-minute series.
+     *
+     * The single most useful thing a weather display can tell you, and almost
+     * nothing on a television does: not what the day looks like, but whether
+     * it is about to rain.
+     */
+    data class Nowcast(
+        /** Minutes until precipitation begins, or null if none is expected. */
+        val startsInMinutes: Int?,
+        /** Minutes until it stops, when it is already falling. */
+        val stopsInMinutes: Int?,
+        /** True when precipitation is falling now. */
+        val fallingNow: Boolean
+    )
+
     data class Conditions(
         val temperature: Double,
         val apparentTemperature: Double,
@@ -53,7 +69,10 @@ object OpenMeteoClient {
         val sunset: String,
         val metric: Boolean,
         val hourly: List<HourEntry>,
-        val daily: List<DayEntry>
+        val daily: List<DayEntry>,
+        val nowcast: Nowcast?,
+        /** Yesterday's high, for the comparison line. Null if unavailable. */
+        val yesterdayHigh: Double?
     )
 
     fun fetch(lat: Double, lon: Double, metric: Boolean): Conditions? {
@@ -63,6 +82,7 @@ object OpenMeteoClient {
                 "&current=temperature_2m,apparent_temperature,weather_code,is_day," +
                 "wind_speed_10m,wind_direction_10m,relative_humidity_2m," +
                 "surface_pressure,visibility,dew_point_2m" +
+                "&minutely_15=precipitation&forecast_minutely_15=16" +
                 "&hourly=temperature_2m,weather_code,precipitation_probability,is_day" +
                 "&daily=temperature_2m_max,temperature_2m_min,weather_code," +
                 "sunrise,sunset,uv_index_max" +
@@ -106,7 +126,9 @@ object OpenMeteoClient {
                 sunset = daily.optJSONArray("sunset")?.optString(0).orEmpty(),
                 metric = metric,
                 hourly = parseHourly(hourly, nowIso, 6),
-                daily = parseDaily(daily, 5)
+                daily = parseDaily(daily, 5),
+                nowcast = parseNowcast(root.optJSONObject("minutely_15"), nowIso),
+                yesterdayHigh = null   // filled separately; see fetchYesterdayHigh
             )
         } catch (e: Exception) {
             Log.w(TAG, "Fetch failed: ${e.message}")
@@ -179,6 +201,107 @@ object OpenMeteoClient {
     } catch (e: Exception) {
         Log.w(TAG, "Daily parse failed: ${e.message}")
         emptyList()
+    }
+
+    /**
+     * Walks the 15-minute series to find the next change in precipitation.
+     *
+     * Four hours of lookahead at 15-minute resolution. Anything above a trace
+     * is treated as rain: 0.1 mm in a quarter hour is barely a drizzle and
+     * flagging it would cry wolf.
+     */
+    private fun parseNowcast(minutely: JSONObject?, nowIso: String): Nowcast? {
+        if (minutely == null || nowIso.isBlank()) return null
+        return try {
+            val times = minutely.getJSONArray("time")
+            val precip = minutely.getJSONArray("precipitation")
+
+            var start = -1
+            for (i in 0 until times.length()) {
+                if (times.getString(i) >= nowIso) { start = i; break }
+            }
+            if (start < 0) return null
+
+            val threshold = 0.1
+            val fallingNow = precip.optDouble(start, 0.0) > threshold
+
+            var changeAt = -1
+            for (i in start until minOf(times.length(), start + 16)) {
+                val wet = precip.optDouble(i, 0.0) > threshold
+                if (wet != fallingNow) { changeAt = i; break }
+            }
+
+            val minutes = if (changeAt < 0) null else (changeAt - start) * 15
+            Nowcast(
+                startsInMinutes = if (!fallingNow) minutes else null,
+                stopsInMinutes = if (fallingNow) minutes else null,
+                fallingNow = fallingNow
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Nowcast parse failed: ${e.message}")
+            null
+        }
+    }
+
+    /**
+     * Yesterday's high, from the archive endpoint.
+     *
+     * A separate call because it's a different API host, and cached for a day
+     * by the caller since it cannot change.
+     */
+    fun fetchYesterdayHigh(lat: Double, lon: Double, metric: Boolean): Double? {
+        val cal = java.util.Calendar.getInstance().apply {
+            add(java.util.Calendar.DAY_OF_MONTH, -1)
+        }
+        val date = String.format(
+            "%04d-%02d-%02d",
+            cal.get(java.util.Calendar.YEAR),
+            cal.get(java.util.Calendar.MONTH) + 1,
+            cal.get(java.util.Calendar.DAY_OF_MONTH)
+        )
+        val unit = if (metric) "celsius" else "fahrenheit"
+        val url = "https://archive-api.open-meteo.com/v1/archive?latitude=$lat&longitude=$lon" +
+                "&start_date=$date&end_date=$date&daily=temperature_2m_max" +
+                "&temperature_unit=$unit&timezone=auto"
+
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                connectTimeout = TIMEOUT_MS
+                readTimeout = TIMEOUT_MS
+                setRequestProperty("Accept", "application/json")
+            }
+            if (conn.responseCode !in 200..299) return null
+            val root = JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+            val arr = root.optJSONObject("daily")?.optJSONArray("temperature_2m_max")
+            val v = arr?.optDouble(0, Double.NaN) ?: Double.NaN
+            if (v.isNaN()) null else v
+        } catch (e: Exception) {
+            Log.w(TAG, "Yesterday fetch failed: ${e.message}")
+            null
+        } finally {
+            conn?.disconnect()
+        }
+    }
+
+    /** Short line describing imminent precipitation, or null when steady. */
+    fun nowcastLabel(n: Nowcast, code: Int): String? {
+        val kind = when (bucket(code)) {
+            "snow" -> "Snow"
+            else -> "Rain"
+        }
+        return when {
+            !n.fallingNow && n.startsInMinutes != null && n.startsInMinutes <= 15 ->
+                "$kind starting shortly"
+            !n.fallingNow && n.startsInMinutes != null ->
+                "$kind starting in about ${n.startsInMinutes} min"
+            n.fallingNow && n.stopsInMinutes != null && n.stopsInMinutes <= 15 ->
+                "Easing off shortly"
+            n.fallingNow && n.stopsInMinutes != null ->
+                "$kind easing in about ${n.stopsInMinutes} min"
+            n.fallingNow -> "$kind continuing"
+            else -> null
+        }
     }
 
     /** "2026-08-31T14:00" -> "2 PM" */

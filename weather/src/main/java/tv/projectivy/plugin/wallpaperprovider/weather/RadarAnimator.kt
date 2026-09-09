@@ -24,7 +24,9 @@ import java.io.File
 object RadarAnimator {
 
     private const val TAG = "RadarAnimator"
-    private const val OUTPUT_NAME = "radar_loop.json"
+    // Timestamped for the same reason as the still renders: a constant URI is
+    // served from the launcher's image cache and never appears to change.
+    private const val OUTPUT_PREFIX = "radar_loop_"
 
     private const val W = 1920
     private const val H = 1080
@@ -123,7 +125,11 @@ object RadarAnimator {
                 put("layers", layers)
             }
 
-            val out = File(cacheDir, OUTPUT_NAME)
+            cacheDir.listFiles { f -> f.name.startsWith(OUTPUT_PREFIX) }
+                ?.sortedByDescending { it.lastModified() }
+                ?.drop(1)
+                ?.forEach { runCatching { it.delete() } }
+            val out = File(cacheDir, "$OUTPUT_PREFIX${System.currentTimeMillis()}.json")
             out.writeText(root.toString())
             Log.i(
                 TAG,

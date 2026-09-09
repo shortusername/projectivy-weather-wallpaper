@@ -11,15 +11,31 @@ as your PR merges. No app release, no waiting on me.
 
 ## 1. Pick a kind
 
-| Kind | Format | Weather readout |
-|---|---|---|
-| `static` | JPG, PNG or WebP | Yes, drawn over your image |
-| `lottie` | Lottie JSON | Yes, embedded into the animation |
-| `video` | MP4 (H.264) | **No** |
+| Kind | Format | Weather readout | Status |
+|---|---|---|---|
+| `static` | JPG, PNG or WebP | Yes, drawn over your image | Working |
+| `video` | MP4 (H.264) | **No** | Working |
+| `lottie` | Lottie JSON | In principle yes | **Unproven — see below** |
 
-Lottie keeps the readout because the plugin injects the weather panel into your
-animation as an image layer before handing it to the launcher. Your timing and
-easing are untouched — we only append one layer on top.
+**Please submit `static` or `video` for now.** Lottie support is written but has
+not been shown to work on real hardware.
+
+The intent is that Lottie keeps the readout: the plugin injects the weather
+panel into your animation as an image layer before handing it to the launcher,
+leaving your timing and easing untouched.
+
+**In practice this is unverified.** The plugin's own animated radar, which uses
+the same mechanism, renders a blank screen on an Nvidia Shield. The suspected
+cause is that the launcher can't load a Lottie from the `content://` URI a
+plugin is able to offer — still images work fine that way, but Lottie is
+usually loaded by a different code path that doesn't accept it. The reference
+plugin only ever demonstrates Lottie from an `android.resource://` URI, and its
+example file contains no image layers at all.
+
+Until that's settled, animated packs are behind the **Experimental features**
+toggle in plugin settings, and selecting one without it enabled falls back to
+the still wallpaper. If you'd like to help settle it, a pack plus a report of
+what you see would be genuinely useful.
 
 Video can't carry the readout: the launcher decodes the file directly and there's
 no point at which the plugin can draw on it. Users are warned when they select
@@ -69,9 +85,54 @@ fit, delete it. `pack-scrim-preview-1920x1080.png` is the scrim on its own.
 A scrim is drawn over the top-left regardless, so text stays legible on bright
 art. Don't pre-darken your images for this; you'll end up with mud.
 
-**Keep files small.** Under 800 KB per still, under 2 MB per Lottie. These
-download over home wifi to a TV box with a modest heap. Video under 8 MB and
-under 15 seconds, seamlessly looping.
+**Keep files small.** Under 800 KB per still, under 2 MB per Lottie, under
+8 MB per video. These download over home wifi to a TV box with a modest heap.
+
+## 2b. If you're submitting video
+
+Video packs work, and they're the one animated format on solid ground — media
+players handle the plugin's URIs natively, which isn't reliably true of Lottie.
+
+**The trade:** the launcher plays your file directly, so nothing can be drawn
+over it. A video pack shows no temperature, no conditions, no severe weather
+banner. Users are warned when they select one. Make sure your video is worth
+that, or submit stills instead.
+
+**Encoding.** This recipe produces something every Android TV device can play:
+
+```bash
+ffmpeg -i input.mov \
+  -c:v libx264 -profile:v main -level 4.0 -pix_fmt yuv420p \
+  -vf "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080" \
+  -r 30 -b:v 4M -maxrate 5M -bufsize 8M \
+  -g 30 -movflags +faststart -an \
+  output.mp4
+```
+
+Each part matters:
+
+- `libx264` with `main` profile — H.264 is the only codec decoded in hardware on
+  every TV box. HEVC, AV1 and VP9 all fail somewhere.
+- `yuv420p` — some decoders reject other pixel formats outright
+- `-an` — strip audio. It's dead weight in a wallpaper and some launchers will
+  happily play it.
+- `+faststart` — puts the metadata at the front so playback starts without
+  seeking to the end of the file
+- `-g 30` — a keyframe every second, so looping doesn't stutter
+
+**Length: 6 to 15 seconds.** Long enough not to feel repetitive, short enough to
+stay under 8 MB at a watchable bitrate.
+
+**Make it loop seamlessly.** The last frame should flow into the first. Cross-fade
+the ends, or pick footage where it doesn't matter — drifting clouds, falling
+snow, rain on glass. A visible cut every ten seconds is worse than a still
+image.
+
+**Keep motion slow and peripheral.** This sits behind a home screen someone is
+navigating. Fast pans and hard cuts are actively unpleasant at ten feet.
+
+CI checks the container brand, the codec, whether metadata is at the front, and
+whether you left an audio track in. It reports what it finds either way.
 
 ## 3. Name assets by condition
 
@@ -175,7 +236,8 @@ confuses people testing the plugin for the first time.
 
 ## A note on Lottie
 
-Lottie packs are the most interesting and the most likely to surprise you. The
+Lottie packs are the most interesting, the most likely to surprise you, and
+currently the least proven — see the status warning above before investing time. The
 plugin adds an image layer at index 0 with your file's `ip`/`op` as its in and
 out points. If your animation does something unusual with precomps or time
 remapping, test it on a device before submitting.

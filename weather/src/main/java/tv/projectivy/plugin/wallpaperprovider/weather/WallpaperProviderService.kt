@@ -9,6 +9,7 @@ import tv.projectivy.plugin.wallpaperprovider.api.Event
 import tv.projectivy.plugin.wallpaperprovider.api.IWallpaperProviderService
 import tv.projectivy.plugin.wallpaperprovider.api.Wallpaper
 import tv.projectivy.plugin.wallpaperprovider.api.WallpaperDisplayMode
+import tv.projectivy.plugin.wallpaperprovider.api.WallpaperProviderContract
 import tv.projectivy.plugin.wallpaperprovider.api.WallpaperType
 
 class WallpaperProviderService : Service() {
@@ -19,6 +20,10 @@ class WallpaperProviderService : Service() {
         private const val MIN_FETCH_INTERVAL_MS = 10 * 60 * 1000L
         /** Alerts change faster than conditions, but not that fast. */
         private const val ALERT_INTERVAL_MS = 5 * 60 * 1000L
+        /** Kp updates every few hours; half an hour is ample. */
+        private const val AURORA_INTERVAL_MS = 30 * 60 * 1000L
+        /** Air quality moves slowly; hourly is plenty. */
+        private const val AIR_INTERVAL_MS = 60 * 60 * 1000L
         /** Frames in an animated radar loop. Seven spans ~2h of observations. */
         private const val RADAR_FRAME_COUNT = 7
         /** World event list is re-fetched no more often than this. */
@@ -29,12 +34,84 @@ class WallpaperProviderService : Service() {
     private var cached: OpenMeteoClient.Conditions? = null
     private var lastAlertAt = 0L
     private var cachedAlert: NwsAlertsClient.Alert? = null
+    private var lastAirAt = 0L
+    private var cachedAir: AirQualityClient.Reading? = null
+    private var lastAuroraAt = 0L
+    private var cachedAurora: AuroraClient.Conditions? = null
+    private var yesterdayHigh: Double? = null
+    private var yesterdayFetchedForDay = -1
     private var lastWorldAt = 0L
     private var cachedEvents: List<WorldEventsClient.Event> = emptyList()
+
+    /**
+     * Drives the per-minute refresh needed by the clock.
+     *
+     * itemsCacheDurationMillis is manifest metadata, fixed at build time, so
+     * the plugin can't ask the launcher to poll faster. Instead it broadcasts
+     * the same update the settings screen sends.
+     *
+     * Only while the service is bound, and only when the clock is on. The
+     * background is cached for nine minutes, so a minute-by-minute redraw
+     * re-encodes a bitmap rather than refetching radar tiles.
+     */
+    private val clockHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val clockTick = object : Runnable {
+        override fun run() {
+            if (!PreferencesManager.showClock) return
+
+            // Don't poke the launcher while it's idle. Each self-update makes
+            // Projectivy re-request and redraw, which its own idle detection
+            // may read as activity — that would stop the screensaver from ever
+            // starting. Nobody is reading the clock at that point anyway.
+            if (PreferencesManager.launcherIdle) {
+                // Keep checking, cheaply, so ticking resumes on wake.
+                scheduleNextTick()
+                return
+            }
+
+            requestSelfUpdate()
+            scheduleNextTick()
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         PreferencesManager.init(this)
+        if (PreferencesManager.showClock) scheduleNextTick()
+    }
+
+    override fun onDestroy() {
+        clockHandler.removeCallbacks(clockTick)
+        Backgrounds.clearBackgroundCache()
+        super.onDestroy()
+    }
+
+    /** Aligns to the next whole minute, so the clock changes when it should. */
+    private fun scheduleNextTick() {
+        val now = System.currentTimeMillis()
+        val delay = 60_000L - (now % 60_000L) + 250L
+        clockHandler.removeCallbacks(clockTick)
+        clockHandler.postDelayed(clockTick, delay)
+    }
+
+    private fun requestSelfUpdate() {
+        try {
+            sendBroadcast(
+                Intent(WallpaperProviderContract.ACTION_WALLPAPER_PROVIDER_UPDATED).apply {
+                    `package` = PROJECTIVY_PACKAGE
+                    putExtra(
+                        WallpaperProviderContract.EXTRA_PROVIDER_ID,
+                        getString(R.string.plugin_uuid)
+                    )
+                    putExtra(
+                        WallpaperProviderContract.EXTRA_UPDATE_REASON,
+                        WallpaperProviderContract.UpdateReason.DATA_CHANGED
+                    )
+                }
+            )
+        } catch (t: Throwable) {
+            Log.w("WeatherWallpaper", "Self update failed: ${t.message}")
+        }
     }
 
     override fun onBind(intent: Intent): IBinder = binder
@@ -44,7 +121,22 @@ class WallpaperProviderService : Service() {
         override fun getWallpapers(event: Event?): List<Wallpaper> {
             // Only TIME_ELAPSED is declared in the manifest (updateMode=1), so this is
             // the only branch that should fire. Anything else: leave the wallpaper alone.
-            if (event !is Event.TimeElapsed) return emptyList()
+            // Idle changes tell us whether anything is covering the wallpaper.
+            // Recorded before the early return, since an idle event should
+            // update the layout even though it isn't a time tick.
+            if (event is Event.LauncherIdleModeChanged) {
+                PreferencesManager.launcherIdle = event.isIdle
+
+                // Return immediately when going idle, with no render and no
+                // network. The launcher is about to hand over to a screensaver
+                // and blocking this binder call could delay or prevent that.
+                // The layout change takes effect on the next ordinary refresh.
+                if (event.isIdle) return emptyList()
+            }
+
+            if (event !is Event.TimeElapsed && event !is Event.LauncherIdleModeChanged) {
+                return emptyList()
+            }
 
             val conditions = currentConditions() ?: return emptyList()
 
@@ -59,8 +151,11 @@ class WallpaperProviderService : Service() {
             // fetches or draws.
             selectActiveLocation(refreshIndex)
 
-            // Alerts are drawn by both render paths, so resolve before either.
+            // Alerts and aurora are drawn by both render paths, so resolve
+            // before either.
             WeatherRenderer.currentAlert = currentAlert()
+            WeatherRenderer.currentAurora = currentAurora()
+            WeatherRenderer.currentAir = currentAir()
 
             return try {
                 // An animated pack is rendered by the launcher, not by us, so the
@@ -73,6 +168,12 @@ class WallpaperProviderService : Service() {
                 // World weather watch takes over the whole frame when it's this
                 // refresh's turn, so it's resolved before the local render.
                 worldEventWallpaper(conditions, refreshIndex)?.let { return listOf(it) }
+
+                // A video from the user's own folder, if one matches.
+                localVideoWallpaper(conditions)?.let { return listOf(it) }
+
+                // Animated precipitation: vector particles over a still scene.
+                animatedPrecipitation(conditions)?.let { return listOf(it) }
 
                 val file = WeatherRenderer.render(
                     this@WallpaperProviderService,
@@ -108,7 +209,12 @@ class WallpaperProviderService : Service() {
 
         override fun getPreferences(): String = PreferencesManager.export()
 
-        override fun setPreferences(params: String) = PreferencesManager.import(params)
+        override fun setPreferences(params: String) {
+            PreferencesManager.import(params)
+            // The clock may have just been switched on or off.
+            if (PreferencesManager.showClock) scheduleNextTick()
+            else clockHandler.removeCallbacks(clockTick)
+        }
     }
 
     /**
@@ -148,6 +254,13 @@ class WallpaperProviderService : Service() {
 
         return when (pack.kind) {
             PackManager.KIND_LOTTIE -> {
+                // Gated with the other Lottie paths. The animated radar loop
+                // renders blank on real hardware, and the suspected cause is
+                // shared: the launcher may not be able to load a Lottie from
+                // the content:// URI a plugin can offer. Until that's
+                // confirmed, an animated pack silently produces a blank
+                // wallpaper — so fall back to the still render instead.
+                if (!PreferencesManager.experimentalFeatures) return null
                 val overlay = WeatherRenderer.renderOverlay(
                     this, c, PreferencesManager.displayLabel
                 )
@@ -260,6 +373,9 @@ class WallpaperProviderService : Service() {
         PreferencesManager.activeLabel = chosen.label
         // The forecast is location-specific, so force a refetch on a change.
         lastFetchAt = 0L
+        // Yesterday's high and air quality are location-specific too.
+        yesterdayFetchedForDay = -1
+        lastAirAt = 0L
     }
 
     /**
@@ -320,6 +436,136 @@ class WallpaperProviderService : Service() {
         }
     }
 
+    /**
+     * A video from the local folder, when that's the chosen background.
+     *
+     * The launcher plays the file directly, so nothing can be drawn over it —
+     * no weather panel, no alert banner. That's inherent to handing over a
+     * single URI, and the settings screen says so when the folder is selected.
+     */
+    private fun localVideoWallpaper(c: OpenMeteoClient.Conditions): Wallpaper? {
+        if (PreferencesManager.backgroundSource != Backgrounds.SOURCE_LOCAL) return null
+        return try {
+            val phase = ThemeResolver.resolve(c)
+            val video = Backgrounds.localVideo(this, c, phase) ?: return null
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", video)
+            grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            Wallpaper(
+                uri = uri.toString(),
+                type = WallpaperType.VIDEO,
+                displayMode = WallpaperDisplayMode.CROP,
+                title = video.nameWithoutExtension,
+                source = "Local folder",
+                author = ""
+            )
+        } catch (t: Throwable) {
+            Log.w("WeatherWallpaper", "Local video failed: ${t.message}")
+            null
+        }
+    }
+
+    /**
+     * Vector precipitation over the still scene, when the weather has anything
+     * falling and the setting is on.
+     *
+     * Returns null for clear and cloudy conditions, so the wallpaper falls
+     * through to the ordinary still render rather than animating nothing.
+     */
+    private fun animatedPrecipitation(c: OpenMeteoClient.Conditions): Wallpaper? {
+        if (!PreferencesManager.animatePrecipitation) return null
+        if (!PrecipitationAnimator.isAnimatable(c.weatherCode)) return null
+        // The animated radar path already owns the frame when it's active.
+        if (PreferencesManager.animateRadar &&
+            PreferencesManager.backgroundSource == Backgrounds.SOURCE_RADAR
+        ) return null
+
+        return try {
+            val phase = ThemeResolver.resolve(c)
+            val scene = WeatherRenderer.composeScene(
+                this, c, PreferencesManager.displayLabel,
+                backgroundFor(c, phase), WeatherRenderer.currentAlert
+            )
+            val loop = PrecipitationAnimator.build(
+                cacheDir, scene, c.weatherCode, phase.isDay
+            )
+            scene.recycle()
+            if (loop == null) return null
+
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", loop)
+            grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+            Wallpaper(
+                uri = uri.toString(),
+                type = WallpaperType.LOTTIE,
+                displayMode = WallpaperDisplayMode.CROP,
+                title = OpenMeteoClient.describe(c.weatherCode),
+                source = "Open-Meteo",
+                author = "Open-Meteo"
+            )
+        } catch (t: Throwable) {
+            Log.w("WeatherWallpaper", "Animated precipitation failed: ${t.message}")
+            null
+        }
+    }
+
+    /**
+     * The background bitmap for the current source, or null for the drawn
+     * scenes which composeScene renders itself.
+     */
+    private fun backgroundFor(
+        c: OpenMeteoClient.Conditions,
+        phase: ThemeResolver.Phase
+    ): android.graphics.Bitmap? {
+        val source = PreferencesManager.backgroundSource
+        if (source == Backgrounds.SOURCE_SCENE || source == Backgrounds.SOURCE_GRADIENT) {
+            return null
+        }
+        return Backgrounds.resolve(this, source, c, 1920, 1080, phase)?.first
+    }
+
+    /** Air quality, on an hourly cadence and keyed to the active location. */
+    private fun currentAir(): AirQualityClient.Reading? {
+        if (!PreferencesManager.showAirQuality) return null
+        val now = System.currentTimeMillis()
+        if (now - lastAirAt > AIR_INTERVAL_MS) {
+            cachedAir = AirQualityClient.fetch(
+                PreferencesManager.currentLatitude, PreferencesManager.currentLongitude
+            )
+            lastAirAt = now
+        }
+        return cachedAir
+    }
+
+    /** K-index conditions, refreshed on its own slower cadence. */
+    private fun currentAurora(): AuroraClient.Conditions? {
+        if (!PreferencesManager.showAurora) return null
+        val now = System.currentTimeMillis()
+        if (now - lastAuroraAt > AURORA_INTERVAL_MS) {
+            cachedAurora = AuroraClient.fetch(PreferencesManager.currentLatitude)
+            lastAuroraAt = now
+        }
+        return cachedAurora
+    }
+
+    /**
+     * Yesterday's high, fetched once a day.
+     *
+     * It cannot change, so it's keyed on the day of the year rather than a
+     * duration — that also makes it refetch correctly across midnight and when
+     * the active location changes.
+     */
+    private fun yesterdayHighFor(lat: Double, lon: Double): Double? {
+        if (!PreferencesManager.showYesterday) return null
+        val day = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+        if (day != yesterdayFetchedForDay) {
+            yesterdayHigh = OpenMeteoClient.fetchYesterdayHigh(
+                lat, lon, PreferencesManager.useMetric
+            )
+            yesterdayFetchedForDay = day
+        }
+        return yesterdayHigh
+    }
+
     /** Most severe active alert, refreshed independently of conditions. */
     private fun currentAlert(): NwsAlertsClient.Alert? {
         if (!PreferencesManager.showAlerts) return null
@@ -343,7 +589,12 @@ class WallpaperProviderService : Service() {
                 PreferencesManager.currentLongitude,
                 PreferencesManager.useMetric
             )?.let {
-                cached = it
+                cached = it.copy(
+                    yesterdayHigh = yesterdayHighFor(
+                        PreferencesManager.currentLatitude,
+                        PreferencesManager.currentLongitude
+                    )
+                )
                 lastFetchAt = now
             }
         }
