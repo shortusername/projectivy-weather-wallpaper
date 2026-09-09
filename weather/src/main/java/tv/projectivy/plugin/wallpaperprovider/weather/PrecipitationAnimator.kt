@@ -222,7 +222,9 @@ object PrecipitationAnimator {
                 val thickness = 1.4 + depth * 2.0
                 val x = rng.nextDouble() * (W * 1.2) - W * 0.1
                 val y0 = rng.nextDouble() * LOOP_DISTANCE - 160
-                val dx = spec.lean * LOOP_DISTANCE
+                // Explicitly Double: lean is a Float and LOOP_DISTANCE an Int, so
+                // the product is a Float, which Math.atan2 won't accept.
+                val dx: Double = spec.lean.toDouble() * LOOP_DISTANCE
                 // Tilt the streak to match its travel direction.
                 val angle = Math.toDegrees(Math.atan2(dx, LOOP_DISTANCE.toDouble()))
                 val tone = if (isDay) Triple(0.86, 0.92, 0.98) else Triple(0.72, 0.82, 0.94)
