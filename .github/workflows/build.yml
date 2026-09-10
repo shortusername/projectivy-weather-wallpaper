@@ -12,6 +12,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # The secrets context can't be used in a step-level `if`, so it's mapped to
+    # env here and the conditions test that instead.
+    env:
+      KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
     steps:
       - uses: actions/checkout@v5
 
@@ -25,11 +29,33 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x gradlew
 
+      # Without a pinned key, Gradle mints a fresh debug keystore on every clean
+      # runner, so each build has a different signature and Android refuses to
+      # update over the previous install.
+      - name: Restore signing keystore
+        id: keystore
+        if: env.KEYSTORE_B64 != ''
+        run: |
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/signing.jks"
+          echo "path=$RUNNER_TEMP/signing.jks" >> "$GITHUB_OUTPUT"
+          echo "Keystore restored ($(stat -c%s "$RUNNER_TEMP/signing.jks") bytes)"
+
       - name: Build debug APK
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ steps.keystore.outputs.path }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: ./gradlew :weather:assembleDebug --no-daemon
 
-      # Tagged builds get the tag; branch builds get version + short SHA, so
-      # every artifact is identifiable once it's sitting in a Downloads folder.
+      - name: Report signing identity
+        run: |
+          APK=$(find weather/build/outputs/apk/debug -name '*.apk' | head -n1)
+          # The certificate fingerprint must match across builds or updates fail.
+          unzip -p "$APK" META-INF/*.RSA 2>/dev/null \
+            | keytool -printcert 2>/dev/null \
+            | grep -E 'SHA256:|Owner:' || echo "Could not read certificate"
+
       - name: Name the APK
         id: name
         run: |
@@ -38,6 +64,14 @@ jobs:
             NAME="weather-wallpaper-${GITHUB_REF_NAME}.apk"
           else
             NAME="weather-wallpaper-v${VERSION}-${GITHUB_SHA::7}.apk"
+          fi
+          # A hyphen in the tag marks a prerelease: v2.2 is stable,
+          # v2.2-beta.1 is not. The in-app updater ignores prereleases, so
+          # beta testers opt in by downloading from the releases page.
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
           fi
           SRC=$(find weather/build/outputs/apk/debug -name '*.apk' | head -n1)
           cp "$SRC" "$NAME"
@@ -51,9 +85,25 @@ jobs:
           path: ${{ steps.name.outputs.apk }}
           if-no-files-found: error
 
-      - name: Attach APK to release
+      # A second copy under a fixed name, so
+      #   /releases/latest/download/weather-wallpaper-latest.apk
+      # always resolves to the newest release. That URL matches on the exact
+      # filename, so the versioned asset alone can't serve this purpose.
+      # Only for stable tags: /latest/ skips prereleases, so attaching it to a
+      # beta would leave the permanent URL pointing at the previous stable
+      # release and quietly confuse anyone using it.
+      - name: Add fixed-name copy for the permanent download URL
+        if: >
+          startsWith(github.ref, 'refs/tags/') &&
+          steps.name.outputs.prerelease == 'false'
+        run: cp "${{ steps.name.outputs.apk }}" weather-wallpaper-latest.apk
+
+      - name: Attach APKs to release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.name.outputs.apk }}
+          files: |
+            ${{ steps.name.outputs.apk }}
+            weather-wallpaper-latest.apk
+          prerelease: ${{ steps.name.outputs.prerelease == 'true' }}
           generate_release_notes: true
