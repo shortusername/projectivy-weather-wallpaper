@@ -567,6 +567,92 @@ class WallpaperProviderService : Service() {
     }
 
         /**
+     * A notable weather event elsewhere, on its turn in the rotation.
+     *
+     * Returns null whenever it isn't this refresh's turn, the feed is empty, or
+     * anything fails — the caller then renders local weather as normal. GDACS
+     * often lists only a handful of current weather events, so an empty feed is
+     * the expected case rather than an error.
+     */
+    private fun worldEventWallpaper(
+        c: OpenMeteoClient.Conditions,
+        refreshIndex: Int
+    ): Wallpaper? {
+        val mode = PreferencesManager.worldWatch
+        if (mode == PreferencesManager.WORLD_OFF) return null
+
+        val everyN = if (mode == PreferencesManager.WORLD_FREQUENT) 2 else 4
+        if (refreshIndex % everyN != 0) return null
+
+        return try {
+            val now = System.currentTimeMillis()
+            if (cachedEvents.isEmpty() || now - lastWorldAt > WORLD_INTERVAL_MS) {
+                cachedEvents = WorldEventsClient.fetch()
+                lastWorldAt = now
+            }
+            if (cachedEvents.isEmpty()) return null
+
+            // Advance the cursor so successive turns show different events.
+            val cursor = PreferencesManager.worldCursor % cachedEvents.size
+            PreferencesManager.worldCursor = (cursor + 1) % cachedEvents.size
+            val event = cachedEvents[cursor]
+
+            // Conditions at the event, not at home.
+            val eventConditions = OpenMeteoClient.fetch(
+                event.latitude, event.longitude, PreferencesManager.useMetric
+            )
+
+            val phase = ThemeResolver.resolve(eventConditions ?: c)
+            val file = WeatherRenderer.renderWorldEvent(
+                this, event, eventConditions, phase
+            )
+
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+
+            Wallpaper(
+                uri = uri.toString(),
+                type = WallpaperType.IMAGE,
+                displayMode = WallpaperDisplayMode.CROP,
+                title = "${event.name} \u00B7 ${event.countries}",
+                source = "GDACS",
+                author = "GDACS (UN/EC)"
+            )
+        } catch (t: Throwable) {
+            Log.w("WeatherWallpaper", "World event render failed: ${t.message}")
+            null
+        }
+    }
+
+    /**
+     * A video from the local folder, when that's the chosen background.
+     *
+     * The launcher plays the file directly, so nothing can be drawn over it —
+     * no weather panel, no alert banner. That's inherent to handing over a
+     * single URI, and the settings screen says so when the folder is selected.
+     */
+    private fun localVideoWallpaper(c: OpenMeteoClient.Conditions): Wallpaper? {
+        if (PreferencesManager.backgroundSource != Backgrounds.SOURCE_LOCAL) return null
+        return try {
+            val phase = ThemeResolver.resolve(c)
+            val video = Backgrounds.localVideo(this, c, phase) ?: return null
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", video)
+            grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            Wallpaper(
+                uri = uri.toString(),
+                type = WallpaperType.VIDEO,
+                displayMode = WallpaperDisplayMode.CROP,
+                title = video.nameWithoutExtension,
+                source = "Local folder",
+                author = ""
+            )
+        } catch (t: Throwable) {
+            Log.w("WeatherWallpaper", "Local video failed: ${t.message}")
+            null
+        }
+    }
+
+    /**
      * Animated precipitation, encoded as video.
      *
      * Was Lottie: vector particles over the scene. The particles themselves
