@@ -34,6 +34,18 @@ class WallpaperProviderService : Service() {
     private var cached: OpenMeteoClient.Conditions? = null
     private var lastAlertAt = 0L
     private var cachedAlert: NwsAlertsClient.Alert? = null
+    /**
+     * The last still render, reused while nothing that affects it has changed.
+     *
+     * Output filenames carry a timestamp so the launcher's image cache can't
+     * serve a stale bitmap. But Projectivy re-requests on its own rotation
+     * interval, so a fresh filename every request meant a visible reload every
+     * few seconds. Returning the same URI when the content is identical keeps
+     * both properties: no stale images, no needless reloads.
+     */
+    private var lastRenderKey: String? = null
+    private var lastRenderFile: java.io.File? = null
+
     private var lastAirAt = 0L
     private var cachedAir: AirQualityClient.Reading? = null
     private var lastAuroraAt = 0L
@@ -158,6 +170,10 @@ class WallpaperProviderService : Service() {
             WeatherRenderer.currentAir = currentAir()
 
             return try {
+                // Diagnostic mode overrides everything, so the result is
+                // unambiguous.
+                selfTestWallpaper()?.let { return listOf(it) }
+
                 // An animated pack is rendered by the launcher, not by us, so the
                 // panel gets embedded into the animation instead of composited.
                 animatedWallpaper(conditions)?.let { return listOf(it) }
@@ -175,11 +191,7 @@ class WallpaperProviderService : Service() {
                 // Animated precipitation: vector particles over a still scene.
                 animatedPrecipitation(conditions)?.let { return listOf(it) }
 
-                val file = WeatherRenderer.render(
-                    this@WallpaperProviderService,
-                    conditions,
-                    PreferencesManager.displayLabel
-                )
+                val file = renderCached(conditions)
 
                 val uri = FileProvider.getUriForFile(
                     this@WallpaperProviderService,
@@ -294,6 +306,85 @@ class WallpaperProviderService : Service() {
         )
     } catch (e: Exception) {
         null
+    }
+
+    /**
+     * Renders the still wallpaper, or reuses the previous file unchanged.
+     *
+     * The key covers everything that alters the output. The clock contributes
+     * the current minute, which is what makes it tick; without the clock the
+     * key only moves when the weather or a setting does.
+     */
+    private fun renderCached(c: OpenMeteoClient.Conditions): java.io.File {
+        val minute = if (PreferencesManager.showClock)
+            System.currentTimeMillis() / 60_000L else 0L
+
+        val key = listOf(
+            c.temperature, c.weatherCode, c.apparentTemperature, c.high, c.low,
+            c.windSpeed, c.windDirection, c.humidity,
+            c.nowcast?.startsInMinutes, c.nowcast?.stopsInMinutes, c.yesterdayHigh,
+            PreferencesManager.displayLabel,
+            PreferencesManager.backgroundSource,
+            ThemeResolver.resolve(c).name,
+            HolidayThemes.current()?.id,
+            PreferencesManager.panelScale,
+            PreferencesManager.currentLatitude, PreferencesManager.currentLongitude,
+            PreferencesManager.showHourly, PreferencesManager.showDaily,
+            PreferencesManager.showStats, PreferencesManager.showSun,
+            PreferencesManager.showNowcast, PreferencesManager.showAdvisories,
+            PreferencesManager.showAirQuality, PreferencesManager.showAurora,
+            PreferencesManager.showYesterday, PreferencesManager.showClock,
+            PreferencesManager.clockPosition, PreferencesManager.clockSize,
+            PreferencesManager.clockStyle, PreferencesManager.clockHours,
+            PreferencesManager.showClockDate,
+            PreferencesManager.safeBottomPercent, PreferencesManager.launcherIdle,
+            PreferencesManager.idleFullFrame, PreferencesManager.labelDensity,
+            PreferencesManager.safeRadarPalette, PreferencesManager.radarZoom,
+            WeatherRenderer.currentAlert?.event,
+            WeatherRenderer.currentAurora?.kp,
+            WeatherRenderer.currentAir?.aqi,
+            Advisories.top(c)?.text,
+            minute
+        ).joinToString("|")
+
+        val cached = lastRenderFile
+        if (key == lastRenderKey && cached != null && cached.exists() && cached.length() > 0) {
+            return cached
+        }
+
+        val file = WeatherRenderer.render(
+            this, c, PreferencesManager.displayLabel
+        )
+        lastRenderKey = key
+        lastRenderFile = file
+        return file
+    }
+
+    /**
+     * The Lottie diagnostic, when switched on.
+     *
+     * Served exactly like any other animation — same content:// URI, same
+     * permission grant — so the only variable is the file's contents.
+     */
+    private fun selfTestWallpaper(): Wallpaper? {
+        val mode = PreferencesManager.lottieSelfTest
+        if (mode == LottieSelfTest.OFF) return null
+        return try {
+            val file = LottieSelfTest.build(cacheDir, mode) ?: return null
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
+            grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            Wallpaper(
+                uri = uri.toString(),
+                type = WallpaperType.LOTTIE,
+                displayMode = WallpaperDisplayMode.CROP,
+                title = "Lottie self-test $mode",
+                source = "diagnostic",
+                author = ""
+            )
+        } catch (t: Throwable) {
+            Log.w("WeatherWallpaper", "Self-test failed: ${t.message}")
+            null
+        }
     }
 
     /**

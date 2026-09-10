@@ -77,6 +77,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
         private const val ACTION_ID_SAFE_AREA = 45L
         private const val ACTION_ID_IDLE_FULL = 46L
+        private const val ACTION_ID_LOTTIE_TEST = 47L
+        private const val SUB_LOTTIE_TEST_BASE = 10000L
 
         /** Where the app row starts, as a percentage of screen height. */
         private val SAFE_OPTIONS = listOf(70, 74, 78, 82, 88)
@@ -372,6 +374,28 @@ class SettingsFragment : GuidedStepSupportFragment() {
         // hiding them keeps the list honest about what will actually do
         // something.
         if (PreferencesManager.experimentalFeatures) {
+            actions.add(
+                GuidedAction.Builder(context)
+                    .id(ACTION_ID_LOTTIE_TEST)
+                    .title(R.string.setting_lottie_test_title)
+                    .description(
+                        getString(
+                            when (PreferencesManager.lottieSelfTest) {
+                                LottieSelfTest.SHAPES_ONLY -> R.string.lottie_test_shapes
+                                LottieSelfTest.SHAPES_AND_IMAGE -> R.string.lottie_test_both
+                                else -> R.string.lottie_test_off
+                            }
+                        )
+                    )
+                    .subActions(
+                        listOf(
+                            subAction(SUB_LOTTIE_TEST_BASE, R.string.lottie_test_off),
+                            subAction(SUB_LOTTIE_TEST_BASE + 1, R.string.lottie_test_shapes),
+                            subAction(SUB_LOTTIE_TEST_BASE + 2, R.string.lottie_test_both)
+                        )
+                    )
+                    .build()
+            )
             actions.add(checkbox(ACTION_ID_ANIMATE_PRECIP, R.string.setting_precip_title,
                 R.string.setting_precip_desc, PreferencesManager.animatePrecipStored))
             actions.add(checkbox(ACTION_ID_ANIMATE, R.string.setting_animate_title,
@@ -673,6 +697,22 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 }
                 return true
             }
+        }
+
+        if (action.id in SUB_LOTTIE_TEST_BASE until SUB_LOTTIE_TEST_BASE + SUB_RANGE) {
+            val mode = (action.id - SUB_LOTTIE_TEST_BASE).toInt()
+            PreferencesManager.lottieSelfTest = mode
+            findActionById(ACTION_ID_LOTTIE_TEST)?.description = getString(
+                when (mode) {
+                    LottieSelfTest.SHAPES_ONLY -> R.string.lottie_test_shapes
+                    LottieSelfTest.SHAPES_AND_IMAGE -> R.string.lottie_test_both
+                    else -> R.string.lottie_test_off
+                }
+            )
+            notifyActionChanged(findActionPositionById(ACTION_ID_LOTTIE_TEST))
+            toast(getString(R.string.toast_lottie_test_hint))
+            pushUpdate(WallpaperProviderContract.UpdateReason.DATA_CHANGED)
+            return true
         }
 
         if (action.id in SUB_SAFE_BASE until SUB_SAFE_BASE + SUB_RANGE) {
@@ -1115,6 +1155,19 @@ class SettingsFragment : GuidedStepSupportFragment() {
             post(action, getString(R.string.update_ready, release.version))
             activity?.runOnUiThread {
                 if (!isAdded) return@runOnUiThread
+
+                // Without this permission the install intent does nothing and
+                // no prompt appears, which reads as the update being broken.
+                if (!UpdateChecker.canInstall(requireContext())) {
+                    post(action, getString(R.string.update_needs_permission))
+                    val opened = UpdateChecker.openInstallPermissionSettings(requireContext())
+                    toast(
+                        if (opened != null) getString(R.string.update_grant_then_retry)
+                        else getString(R.string.update_grant_manually)
+                    )
+                    return@runOnUiThread
+                }
+
                 if (!UpdateChecker.install(requireContext(), apk)) {
                     toast(getString(R.string.update_install_failed))
                 }

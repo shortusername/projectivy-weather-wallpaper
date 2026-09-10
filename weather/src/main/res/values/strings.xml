@@ -47,6 +47,12 @@
     <string name="setting_experimental_title">Experimental features</string>
     <string name="setting_experimental_desc">Reveal animation options that are known to fail on some devices. Animated radar renders blank on Nvidia Shield. Everything falls back to a still wallpaper.</string>
 
+    <string name="setting_lottie_test_title">Lottie self-test (diagnostic)</string>
+    <string name="lottie_test_off">Off \u2014 normal wallpaper</string>
+    <string name="lottie_test_shapes">Shapes only \u2014 no embedded image</string>
+    <string name="lottie_test_both">Shapes plus an embedded image</string>
+    <string name="toast_lottie_test_hint">Back out to the home screen to see the result</string>
+
     <string name="setting_precip_title">Animate rain and snow</string>
     <string name="setting_precip_desc">Experimental \u2014 falling precipitation over the background when it\'s wet out</string>
     <string name="setting_animate_title">Animate radar</string>
@@ -154,7 +160,10 @@
     <string name="update_downloading">Downloading v%1$s\u2026</string>
     <string name="update_download_failed">Download failed</string>
     <string name="update_ready">v%1$s ready \u2014 confirm the install</string>
-    <string name="update_install_failed">Allow this app to install unknown apps, then retry</string>
+    <string name="update_install_failed">Install couldn\'t start \u2014 try side-loading instead</string>
+    <string name="update_needs_permission">Needs permission to install apps</string>
+    <string name="update_grant_then_retry">Allow this app to install unknown apps, then choose Check for updates again</string>
+    <string name="update_grant_manually">Grant \"install unknown apps\" for this plugin in your TV\'s security settings, then retry</string>
 
     <string name="setting_refresh_title">Refresh now</string>
     <string name="setting_refresh_desc">Fetch current conditions and redraw</string>

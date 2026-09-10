@@ -141,6 +141,60 @@ object UpdateChecker {
     }
 
     /**
+     * Whether this app is currently allowed to install packages.
+     *
+     * REQUEST_INSTALL_PACKAGES is not a runtime permission — it can't be
+     * requested with a dialog. From Android 8 it's a special app access the
+     * user grants in Settings, and until they do, the install intent silently
+     * does nothing at all. Hence checking first rather than firing and hoping.
+     */
+    fun canInstall(context: Context): Boolean =
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            context.packageManager.canRequestPackageInstalls()
+        } else {
+            true
+        }
+
+    /**
+     * Opens the screen where the permission is granted.
+     *
+     * The per-app screen is the right destination, but Android TV builds don't
+     * always handle that intent, so this falls back to security settings and
+     * then to the app's own details page. Returns the label of whatever opened,
+     * or null if none resolved — in which case the caller has to tell the user
+     * where to look manually.
+     */
+    fun openInstallPermissionSettings(context: Context): String? {
+        val candidates = listOf(
+            "unknown app sources" to Intent(
+                android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                android.net.Uri.parse("package:${context.packageName}")
+            ),
+            "security settings" to Intent(
+                android.provider.Settings.ACTION_SECURITY_SETTINGS
+            ),
+            "app details" to Intent(
+                android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                android.net.Uri.parse("package:${context.packageName}")
+            )
+        )
+        for ((label, intent) in candidates) {
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (intent.resolveActivity(context.packageManager) != null) {
+                return try {
+                    context.startActivity(intent)
+                    label
+                } catch (t: Throwable) {
+                    Log.w(TAG, "Couldn't open $label: ${t.message}")
+                    continue
+                }
+            }
+        }
+        Log.w(TAG, "No settings screen resolved for install permission")
+        return null
+    }
+
+    /**
      * Hands the APK to the system installer. The user still confirms, and must
      * have allowed this app to install unknown apps.
      */

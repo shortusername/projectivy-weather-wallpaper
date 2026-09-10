@@ -61,6 +61,7 @@ object PreferencesManager {
     const val KEY_CLOCK_HOURS = "clockHours"
     const val KEY_SAFE_BOTTOM = "safeBottomPercent"
     const val KEY_IDLE_FULL = "idleFullFrame"
+    const val KEY_LOTTIE_TEST = "lottieSelfTest"
     const val KEY_BASEMAP_URL = "basemapUrl"
     const val KEY_BASEMAP_ATTRIBUTION = "basemapAttribution"
 
@@ -321,6 +322,18 @@ object PreferencesManager {
         get() = prefs.getBoolean(KEY_IDLE_FULL, true)
         set(v) = prefs.edit().putBoolean(KEY_IDLE_FULL, v).apply()
 
+    /**
+     * Lottie diagnostic mode. 0 off, 1 shapes only, 2 shapes plus an image.
+     *
+     * When set, the wallpaper is replaced by a deliberately minimal test file
+     * so we can find out whether the launcher can load a Lottie from our URI at
+     * all. Persisted so it survives the settings round trip, and it overrides
+     * everything else until switched off.
+     */
+    var lottieSelfTest: Int
+        get() = prefs.getInt(KEY_LOTTIE_TEST, 0)
+        set(v) = prefs.edit().putInt(KEY_LOTTIE_TEST, v).apply()
+
     /** Set by the service from LAUNCHER_IDLE_MODE_CHANGED. */
     @Volatile var launcherIdle: Boolean = false
 
@@ -543,6 +556,7 @@ object PreferencesManager {
         put(KEY_CLOCK_HOURS, clockHours)
         put(KEY_SAFE_BOTTOM, safeBottomPercent)
         put(KEY_IDLE_FULL, idleFullFrame)
+        put(KEY_LOTTIE_TEST, lottieSelfTest)
         put(KEY_LOCATIONS, prefs.getString(KEY_LOCATIONS, "[]"))
         put(KEY_BASEMAP_URL, basemapUrl)
         put(KEY_BASEMAP_ATTRIBUTION, basemapAttribution)
@@ -595,6 +609,7 @@ object PreferencesManager {
             if (json.has(KEY_CLOCK_HOURS)) clockHours = json.getString(KEY_CLOCK_HOURS)
             if (json.has(KEY_SAFE_BOTTOM)) safeBottomPercent = json.getInt(KEY_SAFE_BOTTOM)
             if (json.has(KEY_IDLE_FULL)) idleFullFrame = json.getBoolean(KEY_IDLE_FULL)
+            if (json.has(KEY_LOTTIE_TEST)) lottieSelfTest = json.getInt(KEY_LOTTIE_TEST)
             if (json.has(KEY_LOCATIONS)) {
                 prefs.edit().putString(KEY_LOCATIONS, json.getString(KEY_LOCATIONS)).apply()
             }
