@@ -163,6 +163,12 @@ class WallpaperProviderService : Service() {
             // fetches or draws.
             selectActiveLocation(refreshIndex)
 
+            // Scheduled update check. Fires on a worker thread and only records
+            // what it found, so it never delays this call.
+            if (UpdateChecker.isCheckDue()) {
+                UpdateChecker.checkInBackground(BuildConfig.VERSION_NAME)
+            }
+
             // Alerts and aurora are drawn by both render paths, so resolve
             // before either.
             WeatherRenderer.currentAlert = currentAlert()
@@ -338,6 +344,7 @@ class WallpaperProviderService : Service() {
             WeatherRenderer.currentAurora?.kp,
             WeatherRenderer.currentAir?.aqi,
             Advisories.top(c)?.text,
+            UpdateChecker.pendingVersion(BuildConfig.VERSION_NAME),
             minute
         ).joinToString("|")
 
@@ -454,6 +461,44 @@ class WallpaperProviderService : Service() {
             baseMap?.recycle()
             scene?.recycle()
         }
+    }
+
+    /**
+     * Sets the location for this refresh.
+     *
+     * With cycling off, or only one location saved, this is always the primary
+     * one. Otherwise it advances through the rotation. The chosen location is
+     * published on PreferencesManager so the renderers pick it up without every
+     * drawing call taking a location argument.
+     */
+    private fun selectActiveLocation(refreshIndex: Int) {
+        val rotation = PreferencesManager.locationRotation
+        val mode = PreferencesManager.cycleMode
+
+        if (mode == PreferencesManager.CYCLE_OFF || rotation.size < 2) {
+            PreferencesManager.activeLatitude = null
+            PreferencesManager.activeLongitude = null
+            PreferencesManager.activeLabel = null
+            return
+        }
+
+        // Alternate mode holds each location for two refreshes, so a 15-minute
+        // cycle doesn't move on before anyone has looked at it.
+        val step = if (mode == PreferencesManager.CYCLE_ALTERNATE) 2 else 1
+        if (refreshIndex % step != 0) return
+
+        val cursor = PreferencesManager.locationCursor % rotation.size
+        PreferencesManager.locationCursor = (cursor + 1) % rotation.size
+
+        val chosen = rotation[cursor]
+        PreferencesManager.activeLatitude = chosen.latitude
+        PreferencesManager.activeLongitude = chosen.longitude
+        PreferencesManager.activeLabel = chosen.label
+
+        // All three are location-specific, so a change must invalidate them.
+        lastFetchAt = 0L
+        yesterdayFetchedForDay = -1
+        lastAirAt = 0L
     }
 
     /**

@@ -79,6 +79,15 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_IDLE_FULL = 46L
         private const val ACTION_ID_LOTTIE_TEST = 47L
         private const val SUB_LOTTIE_TEST_BASE = 10000L
+        private const val ACTION_ID_UPDATE_INTERVAL = 48L
+        private const val SUB_UPDATE_INTERVAL_BASE = 11000L
+
+        private val UPDATE_INTERVALS = listOf(
+            PreferencesManager.UPDATE_NEVER to R.string.update_interval_never,
+            PreferencesManager.UPDATE_WEEKLY to R.string.update_interval_weekly,
+            PreferencesManager.UPDATE_FORTNIGHTLY to R.string.update_interval_fortnightly,
+            PreferencesManager.UPDATE_MONTHLY to R.string.update_interval_monthly
+        )
 
         /** Where the app row starts, as a percentage of screen height. */
         private val SAFE_OPTIONS = listOf(70, 74, 78, 82, 88)
@@ -596,12 +605,17 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
+        actions.add(picker(ACTION_ID_UPDATE_INTERVAL, R.string.setting_update_interval_title,
+            SUB_UPDATE_INTERVAL_BASE, UPDATE_INTERVALS, PreferencesManager.updateCheckInterval))
+
         actions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_UPDATE)
                 .title(R.string.setting_update_title)
                 .description(
-                    getString(R.string.setting_update_desc, BuildConfig.VERSION_NAME)
+                    UpdateChecker.pendingVersion(BuildConfig.VERSION_NAME)?.let {
+                        getString(R.string.setting_update_pending, it)
+                    } ?: getString(R.string.setting_update_desc, BuildConfig.VERSION_NAME)
                 )
                 .build()
         )
@@ -665,6 +679,16 @@ class SettingsFragment : GuidedStepSupportFragment() {
                         toast(getString(R.string.toast_video_no_overlay))
                 }
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            return true
+        }
+
+        if (action.id in SUB_UPDATE_INTERVAL_BASE until SUB_UPDATE_INTERVAL_BASE + SUB_RANGE) {
+            val index = (action.id - SUB_UPDATE_INTERVAL_BASE).toInt()
+            UPDATE_INTERVALS.getOrNull(index)?.let { (value, labelRes) ->
+                PreferencesManager.updateCheckInterval = value
+                findActionById(ACTION_ID_UPDATE_INTERVAL)?.description = getString(labelRes)
+                notifyActionChanged(findActionPositionById(ACTION_ID_UPDATE_INTERVAL))
             }
             return true
         }

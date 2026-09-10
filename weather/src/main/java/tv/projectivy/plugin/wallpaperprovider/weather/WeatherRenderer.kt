@@ -524,6 +524,14 @@ object WeatherRenderer {
             }
         }
 
+        // Update notice, kept to the same small print as the credits. A
+        // wallpaper is a poor place to shout, and it self-clears once updated.
+        UpdateChecker.pendingVersion(BuildConfig.VERSION_NAME)?.let { version ->
+            val notice = "Update available \u00B7 v$version"
+            val p = paint(sz(26f), medium, 150)
+            canvas.drawText(notice, MARGIN, H - MARGIN * 0.45f - dy(34f), p)
+        }
+
         attribution?.let {
             canvas.drawText(it, MARGIN, H - 46f, paint(26f, light, 130))
         }

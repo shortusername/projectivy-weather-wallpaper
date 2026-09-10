@@ -39,6 +39,45 @@ object UpdateChecker {
         val sizeBytes: Long
     )
 
+    /**
+     * Whether a scheduled check is due.
+     *
+     * Also true when no check has ever run, so the first look happens promptly
+     * rather than a week after install.
+     */
+    fun isCheckDue(): Boolean {
+        val interval = PreferencesManager.updateCheckIntervalMs ?: return false
+        val last = PreferencesManager.updateLastCheckedAt
+        return last == 0L || System.currentTimeMillis() - last >= interval
+    }
+
+    /**
+     * Runs a scheduled check on a worker thread and records the result.
+     *
+     * Never downloads and never installs — it only stores the version found, so
+     * a notice can be shown. The timestamp is written even on failure, so a
+     * network outage doesn't cause a retry on every single refresh.
+     */
+    fun checkInBackground(installedVersion: String) {
+        Thread {
+            val release = fetchLatest()
+            PreferencesManager.updateLastCheckedAt = System.currentTimeMillis()
+            PreferencesManager.updateVersionFound =
+                if (release != null && isNewer(release.version, installedVersion)) {
+                    Log.i(TAG, "Update available: ${release.version}")
+                    release.version
+                } else {
+                    ""
+                }
+        }.start()
+    }
+
+    /** The pending version, or null when there is nothing newer. */
+    fun pendingVersion(installedVersion: String): String? {
+        val found = PreferencesManager.updateVersionFound
+        return if (found.isNotBlank() && isNewer(found, installedVersion)) found else null
+    }
+
     /** Blocking. Call from a worker thread, never the settings UI thread. */
     fun fetchLatest(): Release? {
         var conn: HttpURLConnection? = null

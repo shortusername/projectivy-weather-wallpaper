@@ -152,6 +152,13 @@
     <string name="report_share_title">Share debug report</string>
     <string name="report_no_share_target">No share app available \u2014 copy the file over adb instead</string>
 
+    <string name="setting_update_interval_title">Look for updates</string>
+    <string name="update_interval_never">Never \u2014 only when I ask</string>
+    <string name="update_interval_weekly">Weekly</string>
+    <string name="update_interval_fortnightly">Every two weeks</string>
+    <string name="update_interval_monthly">Monthly</string>
+    <string name="setting_update_pending">v%1$s is available</string>
+
     <string name="setting_update_title">Check for updates</string>
     <string name="setting_update_desc">Installed: v%1$s</string>
     <string name="update_checking">Checking GitHub\u2026</string>

@@ -62,6 +62,9 @@ object PreferencesManager {
     const val KEY_SAFE_BOTTOM = "safeBottomPercent"
     const val KEY_IDLE_FULL = "idleFullFrame"
     const val KEY_LOTTIE_TEST = "lottieSelfTest"
+    const val KEY_UPDATE_INTERVAL = "updateCheckInterval"
+    const val KEY_UPDATE_LAST_AT = "updateLastCheckedAt"
+    const val KEY_UPDATE_FOUND = "updateVersionFound"
     const val KEY_BASEMAP_URL = "basemapUrl"
     const val KEY_BASEMAP_ATTRIBUTION = "basemapAttribution"
 
@@ -322,6 +325,49 @@ object PreferencesManager {
         get() = prefs.getBoolean(KEY_IDLE_FULL, true)
         set(v) = prefs.edit().putBoolean(KEY_IDLE_FULL, v).apply()
 
+    const val UPDATE_NEVER = "never"
+    const val UPDATE_WEEKLY = "weekly"
+    const val UPDATE_FORTNIGHTLY = "fortnightly"
+    const val UPDATE_MONTHLY = "monthly"
+
+    /**
+     * How often to look for a new release.
+     *
+     * Weekly by default. Deliberately no daily option: releases don't arrive
+     * that often, and a wallpaper that phones home every day to a service with
+     * a 60-request hourly limit would be poor manners for no benefit.
+     *
+     * Checking only ever shows a notice. Nothing downloads or installs on its
+     * own — an app that silently replaced itself would be alarming.
+     */
+    var updateCheckInterval: String
+        get() = prefs.getString(KEY_UPDATE_INTERVAL, null) ?: UPDATE_WEEKLY
+        set(v) = prefs.edit().putString(KEY_UPDATE_INTERVAL, v).apply()
+
+    /** Milliseconds between checks, or null when disabled. */
+    val updateCheckIntervalMs: Long?
+        get() = when (updateCheckInterval) {
+            UPDATE_WEEKLY -> 7L * 24 * 60 * 60 * 1000
+            UPDATE_FORTNIGHTLY -> 14L * 24 * 60 * 60 * 1000
+            UPDATE_MONTHLY -> 30L * 24 * 60 * 60 * 1000
+            else -> null
+        }
+
+    var updateLastCheckedAt: Long
+        get() = prefs.getLong(KEY_UPDATE_LAST_AT, 0L)
+        set(v) = prefs.edit().putLong(KEY_UPDATE_LAST_AT, v).apply()
+
+    /**
+     * The newest version seen, or empty.
+     *
+     * Persisted so the notice survives a restart, and self-clearing: it's only
+     * displayed while it's actually newer than what's installed, so updating
+     * makes it disappear without needing a dismiss action.
+     */
+    var updateVersionFound: String
+        get() = prefs.getString(KEY_UPDATE_FOUND, null) ?: ""
+        set(v) = prefs.edit().putString(KEY_UPDATE_FOUND, v).apply()
+
     /**
      * Lottie diagnostic mode. 0 off, 1 shapes only, 2 shapes plus an image.
      *
@@ -557,6 +603,7 @@ object PreferencesManager {
         put(KEY_SAFE_BOTTOM, safeBottomPercent)
         put(KEY_IDLE_FULL, idleFullFrame)
         put(KEY_LOTTIE_TEST, lottieSelfTest)
+        put(KEY_UPDATE_INTERVAL, updateCheckInterval)
         put(KEY_LOCATIONS, prefs.getString(KEY_LOCATIONS, "[]"))
         put(KEY_BASEMAP_URL, basemapUrl)
         put(KEY_BASEMAP_ATTRIBUTION, basemapAttribution)
@@ -610,6 +657,9 @@ object PreferencesManager {
             if (json.has(KEY_SAFE_BOTTOM)) safeBottomPercent = json.getInt(KEY_SAFE_BOTTOM)
             if (json.has(KEY_IDLE_FULL)) idleFullFrame = json.getBoolean(KEY_IDLE_FULL)
             if (json.has(KEY_LOTTIE_TEST)) lottieSelfTest = json.getInt(KEY_LOTTIE_TEST)
+            if (json.has(KEY_UPDATE_INTERVAL)) {
+                updateCheckInterval = json.getString(KEY_UPDATE_INTERVAL)
+            }
             if (json.has(KEY_LOCATIONS)) {
                 prefs.edit().putString(KEY_LOCATIONS, json.getString(KEY_LOCATIONS)).apply()
             }
