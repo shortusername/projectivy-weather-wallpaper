@@ -815,12 +815,16 @@ class WallpaperProviderService : Service() {
      * duration — that also makes it refetch correctly across midnight and when
      * the active location changes.
      */
-    private fun yesterdayHighFor(lat: Double, lon: Double): Double? {
+    private fun yesterdayHighFor(lat: Double, lon: Double, utcOffsetSeconds: Int): Double? {
         if (!PreferencesManager.showYesterday) return null
-        val day = java.util.Calendar.getInstance().get(java.util.Calendar.DAY_OF_YEAR)
+        // Day-of-year at the displayed location, not the device's — otherwise
+        // this can both fetch the wrong date and fail to refetch when the
+        // location has rolled over to a new day but the device hasn't yet.
+        val day = OpenMeteoClient.locationNow(utcOffsetSeconds)
+            .get(java.util.Calendar.DAY_OF_YEAR)
         if (day != yesterdayFetchedForDay) {
             yesterdayHigh = OpenMeteoClient.fetchYesterdayHigh(
-                lat, lon, PreferencesManager.useMetric
+                lat, lon, PreferencesManager.useMetric, utcOffsetSeconds
             )
             yesterdayFetchedForDay = day
         }
@@ -853,7 +857,8 @@ class WallpaperProviderService : Service() {
                 cached = it.copy(
                     yesterdayHigh = yesterdayHighFor(
                         PreferencesManager.currentLatitude,
-                        PreferencesManager.currentLongitude
+                        PreferencesManager.currentLongitude,
+                        it.utcOffsetSeconds
                     )
                 )
                 lastFetchAt = now

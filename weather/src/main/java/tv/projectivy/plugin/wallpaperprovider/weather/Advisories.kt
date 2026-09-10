@@ -43,7 +43,9 @@ object Advisories {
         val apparentC = toCelsius(c.apparentTemperature, c.metric)
         val dewC = toCelsius(c.dewPoint, c.metric)
         val windKmh = toKmh(c.windSpeed, c.metric)
-        val hour = currentHour()
+        // The displayed location's hour, not the device's — "after 3pm" and
+        // "before 4pm" below are meaningless against the wrong clock.
+        val hour = currentHour(c.utcOffsetSeconds)
 
         val chances = c.hourly.map { it.precipChance }
         val maxChance = chances.maxOrNull() ?: 0
@@ -137,6 +139,6 @@ object Advisories {
 
     private fun round(v: Double): Int = Math.round(v).toInt()
 
-    private fun currentHour(): Int =
-        java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+    private fun currentHour(utcOffsetSeconds: Int): Int =
+        OpenMeteoClient.locationNow(utcOffsetSeconds).get(java.util.Calendar.HOUR_OF_DAY)
 }

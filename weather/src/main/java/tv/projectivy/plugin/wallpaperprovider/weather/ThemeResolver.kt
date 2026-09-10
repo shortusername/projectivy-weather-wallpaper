@@ -39,7 +39,11 @@ object ThemeResolver {
     }
 
     private fun auto(c: OpenMeteoClient.Conditions): Phase {
-        val now = nowMinutes()
+        // The device's clock, not the displayed location's. For a location
+        // the device isn't physically at, those can differ by most of a day —
+        // this was comparing (say) a US Shield's afternoon against Auckland's
+        // sunrise/sunset and getting day/night backwards as a result.
+        val now = nowMinutes(c.utcOffsetSeconds)
         val sunrise = minutesOf(c.sunrise)
         val sunset = minutesOf(c.sunset)
 
@@ -57,8 +61,8 @@ object ThemeResolver {
         return if (c.isDay) Phase.DAY else Phase.NIGHT
     }
 
-    private fun nowMinutes(): Int {
-        val cal = Calendar.getInstance()
+    private fun nowMinutes(utcOffsetSeconds: Int): Int {
+        val cal = OpenMeteoClient.locationNow(utcOffsetSeconds)
         return cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE)
     }
 

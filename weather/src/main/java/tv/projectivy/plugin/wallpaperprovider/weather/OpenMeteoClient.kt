@@ -72,7 +72,15 @@ object OpenMeteoClient {
         val daily: List<DayEntry>,
         val nowcast: Nowcast?,
         /** Yesterday's high, for the comparison line. Null if unavailable. */
-        val yesterdayHigh: Double?
+        val yesterdayHigh: Double?,
+        /**
+         * UTC offset in seconds for the displayed location, from Open-Meteo's
+         * timezone=auto. Use this — not Calendar.getInstance() — for any
+         * "what time/day is it right now at this location" question. The
+         * device's own timezone is frequently different from the location
+         * being shown, sometimes by most of a day.
+         */
+        val utcOffsetSeconds: Int
     )
 
     fun fetch(lat: Double, lon: Double, metric: Boolean): Conditions? {
@@ -106,6 +114,12 @@ object OpenMeteoClient {
             val daily = root.getJSONObject("daily")
             val hourly = root.optJSONObject("hourly")
             val nowIso = current.optString("time")
+            // The location's own UTC offset, from timezone=auto. Needed by
+            // anything reasoning about "now" or "today" at the displayed
+            // location rather than at the device — Calendar.getInstance()
+            // always reflects the device's timezone, which is wrong for a
+            // location the device isn't physically at.
+            val utcOffsetSeconds = root.optInt("utc_offset_seconds", 0)
 
             Conditions(
                 temperature = current.getDouble("temperature_2m"),
@@ -128,7 +142,8 @@ object OpenMeteoClient {
                 hourly = parseHourly(hourly, nowIso, 6),
                 daily = parseDaily(daily, 5),
                 nowcast = parseNowcast(root.optJSONObject("minutely_15"), nowIso),
-                yesterdayHigh = null   // filled separately; see fetchYesterdayHigh
+                yesterdayHigh = null,   // filled separately; see fetchYesterdayHigh
+                utcOffsetSeconds = utcOffsetSeconds
             )
         } catch (e: Exception) {
             Log.w(TAG, "Fetch failed: ${e.message}")
@@ -249,8 +264,17 @@ object OpenMeteoClient {
      * A separate call because it's a different API host, and cached for a day
      * by the caller since it cannot change.
      */
-    fun fetchYesterdayHigh(lat: Double, lon: Double, metric: Boolean): Double? {
-        val cal = java.util.Calendar.getInstance().apply {
+    fun fetchYesterdayHigh(
+        lat: Double,
+        lon: Double,
+        metric: Boolean,
+        utcOffsetSeconds: Int
+    ): Double? {
+        // "Yesterday" at the displayed location, not at the device. Using the
+        // device's calendar here can request the wrong date outright for a
+        // location far enough away in longitude — New Zealand is up to a day
+        // ahead of a US-based device, for instance.
+        val cal = locationNow(utcOffsetSeconds).apply {
             add(java.util.Calendar.DAY_OF_MONTH, -1)
         }
         val date = String.format(
@@ -302,6 +326,26 @@ object OpenMeteoClient {
             n.fallingNow -> "$kind continuing"
             else -> null
         }
+    }
+
+    /**
+     * A Calendar representing "now" at the displayed location.
+     *
+     * Calendar.getInstance() always uses the device's timezone. For a
+     * location the device isn't physically at — the common case for anyone
+     * checking weather somewhere else, or simply on the far side of the date
+     * line from where the box is running — that silently produces the wrong
+     * hour, the wrong day, sometimes the wrong date entirely. This applies the
+     * location's own UTC offset (from timezone=auto) to the device's correct
+     * instant in time, which is the only combination that's actually right
+     * for both.
+     */
+    fun locationNow(utcOffsetSeconds: Int): java.util.Calendar {
+        val cal = java.util.Calendar.getInstance(
+            java.util.TimeZone.getTimeZone("UTC")
+        )
+        cal.add(java.util.Calendar.SECOND, utcOffsetSeconds)
+        return cal
     }
 
     /** "2026-08-31T14:00" -> "2 PM" */
