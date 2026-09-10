@@ -13,7 +13,11 @@ no tracking.
 
 ## Install
 
-**Side-load the APK** from the [latest release][releases] by USB or adb.
+**Easiest — no computer needed.** Install **Downloader** by AFTVnews on the TV,
+then enter code **6704396**. That pulls the latest release directly and will
+keep pointing at future versions too.
+
+**Or side-load the APK** from the [latest release][releases] by USB or adb.
 
 **Or build it yourself** — recommended, and it takes about two minutes with no
 local toolchain. Fork the repo, go to **Actions → Build APK → Run workflow**, and
@@ -26,12 +30,6 @@ Plugins → Weather Wallpaper**.
 On first run the plugin estimates your location from your IP, so it works
 immediately. Correct it in settings via the gear icon beside the plugin name —
 locations are added by name, not coordinates.
-
-> **Downloader code coming soon.** Code **6704396** is registered with AFTVnews
-> and points at the latest release, so it will keep working for future versions.
-> It won't resolve until the first stable release is tagged. Once it does,
-> installing needs no computer at all: install **Downloader** by AFTVnews on the
-> TV and enter the code.
 
 ## What it shows
 
@@ -131,11 +129,17 @@ Testing on an Nvidia Shield showed the launcher renders Lottie shape layers
 correctly but never displays embedded image assets — and radar is raster by
 nature, so the animation was simply blank. Both now encode a short H.264 video
 on the device instead, which the launcher plays through a media player. That
-keeps the radar, the vector map, the panel and the alert banner all intact.
+keeps the radar, the vector map, the panel and the alert banner all intact, and
+it's confirmed working end to end.
 
-They remain behind the toggle because the video approach is new and unproven on
-a range of devices, and because encoding takes a few seconds each refresh.
-Everything falls back to a still wallpaper on failure.
+Encoding happens in the background rather than blocking the wallpaper request,
+so turning this on may show a still frame for the first refresh while the
+initial video builds. After that it updates on its own. Everything still falls
+back to a still wallpaper if anything goes wrong.
+
+They stay behind the toggle because on-device video encoding is meaningfully
+heavier than drawing a still image, and I'd rather that stay something you opt
+into than the default.
 
 Animated wallpaper packs are no longer gated — they work, but like video packs
 they can't show the weather readout, since the launcher renders them itself.
@@ -170,6 +174,25 @@ clock that's fifteen minutes stale is worse than no clock. The background is
 cached so this doesn't refetch radar tiles, but it is more work — and it may
 interfere with your screensaver starting.
 
+## Keeping it updated
+
+**Check for updates** in settings looks at this repo's GitHub releases directly
+— no store, no companion app. It only ever tells you what it finds; nothing
+downloads or installs without you choosing to.
+
+It also checks on its own schedule: **weekly by default**, or fortnightly,
+monthly, or never — your choice, in settings. A small notice appears next to the
+on-screen credits when something newer is available, and clears itself once
+you've updated.
+
+**The one-time catch:** Android treats "let this app install other apps" as a
+special permission granted in system settings, not a popup you can accept from
+inside the app. If Check for updates finds something newer but nothing happens
+when you try to install it, the plugin needs that permission first. On a Shield
+that's **Settings → Device Preferences → Security & restrictions → Unknown
+sources**, then enable it for Weather Wallpaper. Grant it once and updates
+install normally after that.
+
 ## Troubleshooting
 
 There's a **Create debug report** action in settings. It writes a redacted
@@ -199,6 +222,10 @@ where your app row starts.
 and that provider is rejecting the requests. If it points at
 `tile.openstreetmap.org`, that's expected and not fixable — their policy doesn't
 permit app use. Clear the field to fall back to the built-in map.
+
+**Found an update but it won't install.** See [Keeping it updated](#keeping-it-updated)
+above — the plugin needs permission to install apps, granted once in system
+settings.
 
 ## Built with AI assistance
 
