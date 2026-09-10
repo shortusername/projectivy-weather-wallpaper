@@ -25,7 +25,11 @@ class WallpaperProviderService : Service() {
         /** Air quality moves slowly; hourly is plenty. */
         private const val AIR_INTERVAL_MS = 60 * 60 * 1000L
         /** Frames in an animated radar loop. Seven spans ~2h of observations. */
-        private const val RADAR_FRAME_COUNT = 7
+        // RainViewer's past[] array is typically 12-13 entries covering
+        // roughly two hours; requesting more than that just returns fewer.
+        // Now that every frame is used rather than every other one, this
+        // covers the same span with about double the temporal resolution.
+        private const val RADAR_FRAME_COUNT = 13
         /** World event list is re-fetched no more often than this. */
         private const val WORLD_INTERVAL_MS = 30 * 60 * 1000L
     }
@@ -427,7 +431,10 @@ class WallpaperProviderService : Service() {
             scene.recycle(); scene = null
 
             val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
-            val video = VideoEncoder.encode(cacheDir, paths.size, holdFrames = 5) { index, target ->
+            // Shorter hold than before: with roughly twice as many source
+            // frames as previously, keeping the old hold would have doubled
+            // the loop length instead of making the same loop smoother.
+            val video = VideoEncoder.encode(cacheDir, paths.size, holdFrames = 3) { index, target ->
                 val canvas = android.graphics.Canvas(target)
                 canvas.drawBitmap(sceneScaled, 0f, 0f, null)
                 val layer = Backgrounds.radarFrameAt(

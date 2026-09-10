@@ -531,12 +531,18 @@ object Backgrounds {
         val host = maps.optString("host", "https://tilecache.rainviewer.com")
         val past = maps.optJSONObject("radar")?.optJSONArray("past") ?: return null
 
+        // Consecutive frames, not every other one. The stride used to exist to
+        // halve the payload when frames were embedded as base64 inside a Lottie
+        // file; video encodes each frame the same regardless of how many there
+        // are, so skipping half of them only threw away temporal resolution for
+        // no benefit. Using every frame gives smoother motion over the same
+        // two-hour window rather than a shorter or choppier one.
         val paths = mutableListOf<String>()
         var i = past.length() - 1
         while (i >= 0 && paths.size < count) {
             past.optJSONObject(i)?.optString("path")?.takeIf { it.isNotBlank() }
                 ?.let { paths.add(it) }
-            i -= 2
+            i -= 1
         }
         paths.reverse()
         return if (paths.isEmpty()) null else host to paths
