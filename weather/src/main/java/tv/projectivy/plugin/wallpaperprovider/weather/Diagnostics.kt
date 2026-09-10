@@ -30,8 +30,8 @@ object Diagnostics {
     /** Our own tags, so the log section stays relevant. */
     private val OUR_TAGS = listOf(
         "WeatherWallpaper", "OpenMeteoClient", "IpLocationClient", "NwsAlertsClient",
-        "Backgrounds", "GeographyRenderer", "PackManager", "RadarAnimator",
-        "LottieComposer", "UpdateChecker", "WeatherPrefs", "Diagnostics"
+        "Backgrounds", "GeographyRenderer", "PackManager", "VideoEncoder",
+        "LottieSelfTest", "UpdateChecker", "WeatherPrefs", "Diagnostics"
     )
 
     fun build(context: Context): String {

@@ -45,7 +45,7 @@
     <string name="setting_alerts_title">Severe weather alerts</string>
     <string name="setting_alerts_desc">Banner for active NWS warnings (US only)</string>
     <string name="setting_experimental_title">Experimental features</string>
-    <string name="setting_experimental_desc">Reveal animation options that are known to fail on some devices. Animated radar renders blank on Nvidia Shield. Everything falls back to a still wallpaper.</string>
+    <string name="setting_experimental_desc">Reveal animation options. These now encode a short video rather than using Lottie, which didn\'t work. Still unproven \u2014 everything falls back to a still wallpaper.</string>
 
     <string name="setting_lottie_test_title">Lottie self-test (diagnostic)</string>
     <string name="lottie_test_off">Off \u2014 normal wallpaper</string>
@@ -54,9 +54,9 @@
     <string name="toast_lottie_test_hint">Back out to the home screen to see the result</string>
 
     <string name="setting_precip_title">Animate rain and snow</string>
-    <string name="setting_precip_desc">Experimental \u2014 falling precipitation over the background when it\'s wet out</string>
+    <string name="setting_precip_desc">Falling rain or snow over the background when it\'s wet out. Encodes a short video.</string>
     <string name="setting_animate_title">Animate radar</string>
-    <string name="setting_animate_desc">Experimental \u2014 loop the last two hours of precipitation</string>
+    <string name="setting_animate_desc">Loops the last two hours of precipitation. Encodes a short video, so it takes a few seconds to build.</string>
     <string name="toast_animate_needs_radar">Set the background to Live radar to see this</string>
 
     <string name="setting_hourly_title">Show hourly forecast</string>
@@ -198,8 +198,7 @@
     <string name="toast_pack_refreshing">Checking for packs…</string>
     <string name="toast_pack_refreshed">Pack list updated</string>
     <string name="toast_pack_refresh_failed">Couldn\'t reach the pack list</string>
-    <string name="toast_video_no_overlay">Video packs can\'t show the weather readout</string>
-    <string name="toast_lottie_experimental">Animated packs need Experimental features turned on</string>
+    <string name="toast_video_no_overlay">Animated packs can\'t show the weather readout</string>
 
     <string name="setting_unsplash_title">Unsplash access key</string>
     <string name="unsplash_unset">Not set — required for stock photos</string>

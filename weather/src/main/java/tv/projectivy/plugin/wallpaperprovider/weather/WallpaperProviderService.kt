@@ -266,18 +266,12 @@ class WallpaperProviderService : Service() {
 
         return when (pack.kind) {
             PackManager.KIND_LOTTIE -> {
-                // Gated with the other Lottie paths. The animated radar loop
-                // renders blank on real hardware, and the suspected cause is
-                // shared: the launcher may not be able to load a Lottie from
-                // the content:// URI a plugin can offer. Until that's
-                // confirmed, an animated pack silently produces a blank
-                // wallpaper — so fall back to the still render instead.
-                if (!PreferencesManager.experimentalFeatures) return null
-                val overlay = WeatherRenderer.renderOverlay(
-                    this, c, PreferencesManager.displayLabel
-                )
-                val composed = LottieComposer.compose(cacheDir, asset, overlay) ?: return null
-                wallpaperFor(composed, WallpaperType.LOTTIE, pack, credit)
+                // Served exactly as the contributor made it. The panel is no
+                // longer injected: testing showed shape layers animate
+                // correctly but embedded images never display, and the panel
+                // was an embedded image. So an animated pack behaves like a
+                // video pack — motion, no weather readout.
+                wallpaperFor(asset, WallpaperType.LOTTIE, pack, credit)
             }
             PackManager.KIND_VIDEO -> {
                 // Video can't carry the panel — the launcher decodes it directly.
@@ -388,85 +382,78 @@ class WallpaperProviderService : Service() {
     }
 
     /**
-     * Builds the animated radar loop when enabled. Returns null on any failure
-     * so the caller falls through to the normal still wallpaper.
+     * Animated radar, encoded as an MP4 on the device.
+     *
+     * Lottie was the original approach and cannot work: testing showed the
+     * launcher renders Lottie shape layers correctly but doesn't display
+     * embedded image assets at all, and radar is raster by nature. Video takes
+     * a different path entirely — the launcher hands the URI to a media player,
+     * which reads content:// natively, as the existing video packs demonstrate.
+     *
+     * Everything survives this way: radar, the vector map, the weather panel,
+     * the alert banner, all burned into the frames.
+     *
+     * Frames are composed and encoded one at a time, so memory stays flat
+     * regardless of how many there are.
      */
     private fun animatedRadar(c: OpenMeteoClient.Conditions): Wallpaper? {
         if (!PreferencesManager.animateRadar) return null
         if (PreferencesManager.backgroundSource != Backgrounds.SOURCE_RADAR) return null
 
+        var baseMap: android.graphics.Bitmap? = null
+        var scene: android.graphics.Bitmap? = null
         return try {
             val phase = ThemeResolver.resolve(c)
-            val baseMap = Backgrounds.radarBaseMap(this, 1920, 1080, phase) ?: return null
-            val scene = WeatherRenderer.composeScene(
+            val (host, paths) = Backgrounds.radarFramePaths(RADAR_FRAME_COUNT) ?: return null
+
+            // The still scene, drawn once: map, panel, banner, everything but
+            // the precipitation.
+            baseMap = Backgrounds.radarBaseMap(this, 1920, 1080, phase) ?: return null
+            scene = WeatherRenderer.composeScene(
                 this, c, PreferencesManager.displayLabel, baseMap, WeatherRenderer.currentAlert
             )
-            baseMap.recycle()
+            baseMap.recycle(); baseMap = null
 
-            // Already-encoded WebP bytes, one frame decoded at a time upstream.
-            val frames = Backgrounds.radarFrames(this, 1920, 1080, RADAR_FRAME_COUNT)
-            if (frames.isEmpty()) { scene.recycle(); return null }
+            val sceneScaled = android.graphics.Bitmap.createScaledBitmap(
+                scene, VideoEncoder.WIDTH, VideoEncoder.HEIGHT, true
+            )
+            scene.recycle(); scene = null
 
-            val loop = RadarAnimator.build(cacheDir, scene, frames)
-            scene.recycle()
-            if (loop == null) return null
+            val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+            val video = VideoEncoder.encode(cacheDir, paths.size, holdFrames = 5) { index, target ->
+                val canvas = android.graphics.Canvas(target)
+                canvas.drawBitmap(sceneScaled, 0f, 0f, null)
+                val layer = Backgrounds.radarFrameAt(
+                    this, VideoEncoder.WIDTH, VideoEncoder.HEIGHT, host, paths[index]
+                )
+                if (layer != null) {
+                    canvas.drawBitmap(layer, 0f, 0f, paint)
+                    layer.recycle()
+                }
+                // A frame with no precipitation is still a valid frame.
+                true
+            }
+            sceneScaled.recycle()
+            if (video == null) return null
 
-            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", loop)
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", video)
             grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
             Wallpaper(
                 uri = uri.toString(),
-                type = WallpaperType.LOTTIE,
+                type = WallpaperType.VIDEO,
                 displayMode = WallpaperDisplayMode.CROP,
                 title = OpenMeteoClient.describe(c.weatherCode),
                 source = "RainViewer",
                 author = "RainViewer"
             )
         } catch (t: Throwable) {
-            // Throwable deliberately: an OutOfMemoryError here would otherwise
-            // escape the binder call and leave the wallpaper blank instead of
-            // falling back to the still render.
             Log.w("WeatherWallpaper", "Animated radar failed: ${t.message}")
             null
+        } finally {
+            baseMap?.recycle()
+            scene?.recycle()
         }
-    }
-
-    /**
-     * Sets the location for this refresh.
-     *
-     * With cycling off, or only one location saved, this is always the primary
-     * one. Otherwise it advances through the rotation. The chosen location is
-     * published on PreferencesManager so the renderers pick it up without
-     * every drawing call taking a location argument.
-     */
-    private fun selectActiveLocation(refreshIndex: Int) {
-        val rotation = PreferencesManager.locationRotation
-        val mode = PreferencesManager.cycleMode
-
-        if (mode == PreferencesManager.CYCLE_OFF || rotation.size < 2) {
-            PreferencesManager.activeLatitude = null
-            PreferencesManager.activeLongitude = null
-            PreferencesManager.activeLabel = null
-            return
-        }
-
-        // Alternate mode holds each location for two refreshes, so a 15-minute
-        // cycle doesn't move on before anyone has looked at it.
-        val step = if (mode == PreferencesManager.CYCLE_ALTERNATE) 2 else 1
-        if (refreshIndex % step != 0) return
-
-        val cursor = PreferencesManager.locationCursor % rotation.size
-        PreferencesManager.locationCursor = (cursor + 1) % rotation.size
-
-        val chosen = rotation[cursor]
-        PreferencesManager.activeLatitude = chosen.latitude
-        PreferencesManager.activeLongitude = chosen.longitude
-        PreferencesManager.activeLabel = chosen.label
-        // The forecast is location-specific, so force a refetch on a change.
-        lastFetchAt = 0L
-        // Yesterday's high and air quality are location-specific too.
-        yesterdayFetchedForDay = -1
-        lastAirAt = 0L
     }
 
     /**
@@ -556,38 +543,59 @@ class WallpaperProviderService : Service() {
     }
 
     /**
-     * Vector precipitation over the still scene, when the weather has anything
-     * falling and the setting is on.
+     * Animated precipitation, encoded as video.
+     *
+     * Was Lottie: vector particles over the scene. The particles themselves
+     * would have worked — shape layers render fine — but the scene behind them
+     * was an embedded image, and those don't display. Drawing the particles
+     * onto real frames and encoding avoids the problem entirely, and keeps the
+     * panel and the background.
      *
      * Returns null for clear and cloudy conditions, so the wallpaper falls
      * through to the ordinary still render rather than animating nothing.
      */
     private fun animatedPrecipitation(c: OpenMeteoClient.Conditions): Wallpaper? {
         if (!PreferencesManager.animatePrecipitation) return null
-        if (!PrecipitationAnimator.isAnimatable(c.weatherCode)) return null
-        // The animated radar path already owns the frame when it's active.
+        if (!PrecipitationFrames.isAnimatable(c.weatherCode)) return null
+        // The radar path already owns the frame when it's active.
         if (PreferencesManager.animateRadar &&
             PreferencesManager.backgroundSource == Backgrounds.SOURCE_RADAR
         ) return null
 
+        var scene: android.graphics.Bitmap? = null
+        var sceneScaled: android.graphics.Bitmap? = null
         return try {
             val phase = ThemeResolver.resolve(c)
-            val scene = WeatherRenderer.composeScene(
+            scene = WeatherRenderer.composeScene(
                 this, c, PreferencesManager.displayLabel,
                 backgroundFor(c, phase), WeatherRenderer.currentAlert
             )
-            val loop = PrecipitationAnimator.build(
-                cacheDir, scene, c.weatherCode, phase.isDay
+            sceneScaled = android.graphics.Bitmap.createScaledBitmap(
+                scene, VideoEncoder.WIDTH, VideoEncoder.HEIGHT, true
             )
-            scene.recycle()
-            if (loop == null) return null
+            scene.recycle(); scene = null
 
-            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", loop)
+            val frames = PrecipitationFrames.frameCount(c.weatherCode)
+            val backdrop = sceneScaled
+            val video = VideoEncoder.encode(cacheDir, frames, holdFrames = 1) { index, target ->
+                val canvas = android.graphics.Canvas(target)
+                canvas.drawBitmap(backdrop, 0f, 0f, null)
+                PrecipitationFrames.draw(
+                    canvas, VideoEncoder.WIDTH, VideoEncoder.HEIGHT,
+                    c.weatherCode, phase.isDay,
+                    progress = index.toFloat() / frames
+                )
+                true
+            }
+            sceneScaled.recycle(); sceneScaled = null
+            if (video == null) return null
+
+            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", video)
             grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
 
             Wallpaper(
                 uri = uri.toString(),
-                type = WallpaperType.LOTTIE,
+                type = WallpaperType.VIDEO,
                 displayMode = WallpaperDisplayMode.CROP,
                 title = OpenMeteoClient.describe(c.weatherCode),
                 source = "Open-Meteo",
@@ -596,6 +604,9 @@ class WallpaperProviderService : Service() {
         } catch (t: Throwable) {
             Log.w("WeatherWallpaper", "Animated precipitation failed: ${t.message}")
             null
+        } finally {
+            scene?.recycle()
+            sceneScaled?.recycle()
         }
     }
 

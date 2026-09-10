@@ -237,7 +237,7 @@ object WeatherRenderer {
      *
      * Used when the background is an animation the launcher renders itself: we
      * can't composite onto that, so the panel is embedded into the Lottie as an
-     * image layer instead. See LottieComposer.
+     * video frames instead. See VideoEncoder.
      */
     fun renderOverlay(context: Context, c: OpenMeteoClient.Conditions, placeLabel: String): File {
         val bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
@@ -265,7 +265,7 @@ object WeatherRenderer {
      * The full still scene as a Bitmap, over a supplied background.
      *
      * Used by the animated radar path: the map and panel are composited once
-     * here, then RadarAnimator layers moving precipitation on top.
+     * here, then each radar observation is drawn over a copy of it.
      */
     fun composeScene(
         context: Context,

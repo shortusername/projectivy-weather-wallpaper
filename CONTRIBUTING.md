@@ -15,31 +15,26 @@ as your PR merges. No app release, no waiting on me.
 |---|---|---|---|
 | `static` | JPG, PNG or WebP | Yes, drawn over your image | Working |
 | `video` | MP4 (H.264) | **No** | Working |
-| `lottie` | Lottie JSON | In principle yes | **Unproven — see below** |
+| `lottie` | Lottie JSON | **No** | Working |
 
-**Please submit `static` or `video` for now.** Lottie support is written but has
-not been shown to work on real hardware.
+**All three kinds work.** The difference is whether the weather readout can be
+drawn on top.
 
-The intent is that Lottie keeps the readout: the plugin injects the weather
-panel into your animation as an image layer before handing it to the launcher,
-leaving your timing and easing untouched.
+For `static` it can, because the plugin composites the panel onto your image
+before handing it over. For `video` and `lottie` it can't: the launcher renders
+those itself and nothing can be drawn over them.
 
-**In practice this is unverified.** The plugin's own animated radar, which uses
-the same mechanism, renders a blank screen on an Nvidia Shield. The suspected
-cause is that the launcher can't load a Lottie from the `content://` URI a
-plugin is able to offer — still images work fine that way, but Lottie is
-usually loaded by a different code path that doesn't accept it. The reference
-plugin only ever demonstrates Lottie from an `android.resource://` URI, and its
-example file contains no image layers at all.
+An earlier version of this document claimed Lottie packs kept the readout. That
+was wrong and I'm sorry if anyone built around it. The plugin used to inject the
+panel into your animation as an image layer, and testing on real hardware
+showed the launcher renders Lottie *shape* layers correctly but never displays
+embedded *image* assets — so the panel silently vanished. Injection has been
+removed and your animation is now served exactly as you made it.
 
-Until that's settled, animated packs are behind the **Experimental features**
-toggle in plugin settings, and selecting one without it enabled falls back to
-the still wallpaper. If you'd like to help settle it, a pack plus a report of
-what you see would be genuinely useful.
-
-Video can't carry the readout: the launcher decodes the file directly and there's
-no point at which the plugin can draw on it. Users are warned when they select
-one.
+Practical upshot for animators: **shapes, paths, fills, strokes, transforms and
+keyframes all work. Embedded images do not.** Design accordingly — a Lottie pack
+built from vector artwork will render faithfully; one that embeds a photograph
+will show everything except the photograph.
 
 ## 2. Make the assets
 
@@ -236,12 +231,15 @@ confuses people testing the plugin for the first time.
 
 ## A note on Lottie
 
-Lottie packs are the most interesting, the most likely to surprise you, and
-currently the least proven — see the status warning above before investing time. The
-plugin adds an image layer at index 0 with your file's `ip`/`op` as its in and
-out points. If your animation does something unusual with precomps or time
-remapping, test it on a device before submitting.
+Lottie packs are the most interesting kind to make, and the constraint worth
+knowing is simple: **vector renders, raster doesn't.**
 
-Text layers in your own animation may not render, because font resolution
-happens inside the launcher's process where neither of us can install a font.
-Convert text to shapes.
+Shape layers, paths, fills, gradients, strokes, trim paths, transforms and
+keyframes all behave. Anything you embed as an image — a texture, a photo, a
+pre-rendered element — will be absent. This was established by serving a test
+animation containing shapes and one embedded PNG: the shapes animated, the PNG
+never appeared.
+
+Keep the file under 2 MB. Loop it cleanly. And remember it plays behind a home
+screen someone is navigating, so slow, peripheral motion works far better than
+anything fast or high-contrast.

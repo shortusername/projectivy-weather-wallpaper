@@ -79,7 +79,7 @@ object Backgrounds {
 
     /**
      * Static image from the selected community pack. Animated packs never reach
-     * here — the service handles those via LottieComposer.
+     * here — the service encodes those to video instead.
      */
     private fun packImage(
         context: Context,
@@ -519,28 +519,17 @@ object Backgrounds {
         null
     }
 
-    /** The radar map with no precipitation drawn: basemap, borders, labels. */
-    fun radarBaseMap(
-        context: Context,
-        width: Int,
-        height: Int,
-        phase: ThemeResolver.Phase
-    ): Bitmap? =
-        try { radarMap(context, width, height, phase, includeRadar = false) }
-        catch (e: Exception) { Log.w(TAG, "Base map failed: ${e.message}"); null }
-
     /**
-     * The most recent radar observations as transparent overlays, oldest first.
+     * Radar observation paths, newest last, without fetching any tiles.
      *
-     * RainViewer publishes roughly 13 past frames covering two hours. Taking
-     * every other one gives a smoother-feeling loop over the same span for half
-     * the payload.
+     * Split from the frame rendering so the video encoder can pull one frame at
+     * a time and never hold more than one in memory.
      */
-    fun radarFrames(context: Context, width: Int, height: Int, count: Int): List<ByteArray> {
+    fun radarFramePaths(count: Int): Pair<String, List<String>>? {
         val maps = getJson("https://api.rainviewer.com/public/weather-maps.json")
-            ?: return emptyList()
+            ?: return null
         val host = maps.optString("host", "https://tilecache.rainviewer.com")
-        val past = maps.optJSONObject("radar")?.optJSONArray("past") ?: return emptyList()
+        val past = maps.optJSONObject("radar")?.optJSONArray("past") ?: return null
 
         val paths = mutableListOf<String>()
         var i = past.length() - 1
@@ -550,23 +539,32 @@ object Backgrounds {
             i -= 2
         }
         paths.reverse()
-
-        // Encode and release each frame before fetching the next. Holding seven
-        // full-size ARGB bitmaps at once is ~56 MB and will OOM on a TV box —
-        // that was the cause of the blank wallpaper in 2.0.
-        return paths.mapNotNull { path ->
-            var frame: Bitmap? = null
-            try {
-                frame = radarLayerOnly(context, width, height, host, path)
-                frame?.let { RadarAnimator.encodeFrame(it) }
-            } catch (t: Throwable) {
-                Log.w(TAG, "Frame failed: ${t.message}")
-                null
-            } finally {
-                frame?.recycle()
-            }
-        }
+        return if (paths.isEmpty()) null else host to paths
     }
+
+    /** One radar observation as a transparent overlay. */
+    fun radarFrameAt(
+        context: Context,
+        width: Int,
+        height: Int,
+        host: String,
+        path: String
+    ): Bitmap? = try {
+        radarLayerOnly(context, width, height, host, path)
+    } catch (t: Throwable) {
+        Log.w(TAG, "Radar frame failed: ${t.message}")
+        null
+    }
+
+    /** The radar map with no precipitation drawn: basemap, borders, labels. */
+    fun radarBaseMap(
+        context: Context,
+        width: Int,
+        height: Int,
+        phase: ThemeResolver.Phase
+    ): Bitmap? =
+        try { radarMap(context, width, height, phase, includeRadar = false) }
+        catch (e: Exception) { Log.w(TAG, "Base map failed: ${e.message}"); null }
 
     /** Precipitation only, on a transparent canvas, matching radarMap's grid. */
     private fun radarLayerOnly(

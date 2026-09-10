@@ -658,13 +658,11 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 findActionById(ACTION_ID_BACKGROUND)?.description = backgroundLabel()
                 notifyActionChanged(findActionPositionById(ACTION_ID_BACKGROUND))
 
+                // Both animated kinds trade the readout for motion, for the
+                // same reason: the launcher won't draw our panel over them.
                 when (chosen.kind) {
-                    PackManager.KIND_VIDEO ->
+                    PackManager.KIND_VIDEO, PackManager.KIND_LOTTIE ->
                         toast(getString(R.string.toast_video_no_overlay))
-                    PackManager.KIND_LOTTIE ->
-                        if (!PreferencesManager.experimentalFeatures) {
-                            toast(getString(R.string.toast_lottie_experimental))
-                        }
                 }
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }

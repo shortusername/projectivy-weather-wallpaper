@@ -123,17 +123,22 @@ limits, video encoding, and licensing rules.
 
 ## Experimental features
 
-Some options sit behind an **Experimental features** toggle, off by default.
-They're written but unproven on hardware, and one is known to fail: animated
-radar renders blank on an Nvidia Shield. All three share a suspected cause — the
-launcher may be unable to load a Lottie animation from the URI a plugin can
-provide.
+The two animation options sit behind an **Experimental features** toggle, off by
+default: **Animate radar** and **Animate rain and snow**.
 
-Behind the gate: **Animate radar**, **Animate rain and snow**, and **animated
-(Lottie) wallpaper packs**.
+They were originally built with Lottie, which turned out not to work here.
+Testing on an Nvidia Shield showed the launcher renders Lottie shape layers
+correctly but never displays embedded image assets — and radar is raster by
+nature, so the animation was simply blank. Both now encode a short H.264 video
+on the device instead, which the launcher plays through a media player. That
+keeps the radar, the vector map, the panel and the alert banner all intact.
 
-Everything falls back to a still wallpaper if it fails, so enabling them is safe
-— you may simply see no animation. Static and video packs are unaffected.
+They remain behind the toggle because the video approach is new and unproven on
+a range of devices, and because encoding takes a few seconds each refresh.
+Everything falls back to a still wallpaper on failure.
+
+Animated wallpaper packs are no longer gated — they work, but like video packs
+they can't show the weather readout, since the launcher renders them itself.
 
 ## Demo mode
 
