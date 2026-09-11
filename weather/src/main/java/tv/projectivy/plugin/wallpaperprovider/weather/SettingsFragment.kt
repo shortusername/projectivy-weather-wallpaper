@@ -14,8 +14,50 @@ class SettingsFragment : GuidedStepSupportFragment() {
     /** Held between a search and the user picking one of its results. */
     private var searchResults: List<GeocodingClient.Place> = emptyList()
 
+    /**
+     * Which settings category this screen shows, or null for the root screen
+     * that just lists the categories. Read from the fragment's own arguments,
+     * the standard way to parameterize a Fragment instance in Android — set
+     * once via newInstance() and never changed for the life of this instance.
+     */
+    private val category: String? get() = arguments?.getString(ARG_CATEGORY)
 
     companion object {
+        private const val ARG_CATEGORY = "category"
+
+        private const val CAT_LOCATION = "location"
+        private const val CAT_APPEARANCE = "appearance"
+        private const val CAT_WEATHER = "weather"
+        private const val CAT_CLOCK = "clock"
+        private const val CAT_SCREEN = "screen"
+        private const val CAT_EXPERIMENTAL = "experimental"
+        private const val CAT_DEMO = "demo"
+        private const val CAT_HOUSEKEEPING = "housekeeping"
+
+        /**
+         * Builds the sub-screen for one category. Pushed onto the fragment back
+         * stack via GuidedStepSupportFragment.add(), which is what gives this
+         * the standard Leanback wizard behaviour: the remote's back button
+         * returns to the category list automatically, with no extra code
+         * needed here for that.
+         */
+        fun newInstance(category: String): SettingsFragment = SettingsFragment().apply {
+            arguments = Bundle().apply { putString(ARG_CATEGORY, category) }
+        }
+
+        // IDs for the 8 category entries on the root screen. Placed in the
+        // 50-98 gap: every existing top-level ACTION_ID runs 1-49 with no
+        // gaps, and 99 is already SUB_SCENE, so this range is guaranteed
+        // clear of everything already in this file.
+        private const val ACTION_ID_CAT_LOCATION = 60L
+        private const val ACTION_ID_CAT_APPEARANCE = 61L
+        private const val ACTION_ID_CAT_WEATHER = 62L
+        private const val ACTION_ID_CAT_CLOCK = 63L
+        private const val ACTION_ID_CAT_SCREEN = 64L
+        private const val ACTION_ID_CAT_EXPERIMENTAL = 65L
+        private const val ACTION_ID_CAT_DEMO = 66L
+        private const val ACTION_ID_CAT_HOUSEKEEPING = 67L
+
         private const val ACTION_ID_LATITUDE = 1L
         private const val ACTION_ID_LONGITUDE = 2L
         private const val ACTION_ID_PLACE = 3L
@@ -37,6 +79,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val SUB_STOCK = 102L
         private const val SUB_RADAR = 103L
         private const val SUB_PACK = 104L
+        private const val SUB_SATELLITE = 105L
         private const val SUB_LBL_OFF = 110L
         private const val SUB_LBL_FEW = 111L
         private const val SUB_LBL_BAL = 112L
@@ -77,9 +120,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
         private const val ACTION_ID_SAFE_AREA = 45L
         private const val ACTION_ID_IDLE_FULL = 46L
-        private const val ACTION_ID_LOTTIE_TEST = 47L
-        private const val SUB_LOTTIE_TEST_BASE = 10000L
         private const val ACTION_ID_UPDATE_INTERVAL = 48L
+        private const val ACTION_ID_REDUCE_BURN_IN = 49L
         private const val SUB_UPDATE_INTERVAL_BASE = 11000L
 
         private val UPDATE_INTERVALS = listOf(
@@ -158,10 +200,117 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val SUB_RANGE = 1000L
     }
 
+    /**
+     * Which category a top-level action belongs to, for filtering the full
+     * list down to what one category screen should show.
+     *
+     * Every ACTION_ID_* declared above must appear in exactly one branch here.
+     * That's checked mechanically before each release — a name silently
+     * missing from every branch would mean that setting quietly stops
+     * appearing on any screen at all, which is exactly the kind of thing this
+     * function existing is meant to prevent, so it would be ironic to get it
+     * wrong here of all places.
+     */
+    private fun categoryOf(id: Long): String? = when (id) {
+        ACTION_ID_LATITUDE, ACTION_ID_LONGITUDE, ACTION_ID_PLACE, ACTION_ID_UNITS,
+        ACTION_ID_ADD_LOCATION, ACTION_ID_LOCATIONS, ACTION_ID_CYCLE -> CAT_LOCATION
+
+        ACTION_ID_BACKGROUND, ACTION_ID_UNSPLASH, ACTION_ID_RADAR_ZOOM, ACTION_ID_PACK,
+        ACTION_ID_PACK_REFRESH, ACTION_ID_BASEMAP, ACTION_ID_BASEMAP_ATTR, ACTION_ID_LABELS,
+        ACTION_ID_THEME, ACTION_ID_HOLIDAY, ACTION_ID_SCALE, ACTION_ID_SAFE_RADAR ->
+            CAT_APPEARANCE
+
+        ACTION_ID_HOURLY, ACTION_ID_DAILY, ACTION_ID_STATS, ACTION_ID_SUN, ACTION_ID_ALERTS,
+        ACTION_ID_WORLD, ACTION_ID_NOWCAST, ACTION_ID_AURORA, ACTION_ID_YESTERDAY,
+        ACTION_ID_AIR, ACTION_ID_ADVISORIES -> CAT_WEATHER
+
+        ACTION_ID_CLOCK, ACTION_ID_CLOCK_DATE, ACTION_ID_CLOCK_POSITION,
+        ACTION_ID_CLOCK_SIZE, ACTION_ID_CLOCK_STYLE, ACTION_ID_CLOCK_HOURS -> CAT_CLOCK
+
+        ACTION_ID_SAFE_AREA, ACTION_ID_IDLE_FULL, ACTION_ID_REDUCE_BURN_IN -> CAT_SCREEN
+
+        ACTION_ID_ANIMATE, ACTION_ID_ANIMATE_PRECIP, ACTION_ID_EXPERIMENTAL ->
+            CAT_EXPERIMENTAL
+
+        ACTION_ID_DEMO, ACTION_ID_DEMO_LABEL -> CAT_DEMO
+
+        ACTION_ID_REFRESH, ACTION_ID_UPDATE, ACTION_ID_REPORT, ACTION_ID_UPDATE_INTERVAL ->
+            CAT_HOUSEKEEPING
+
+        else -> null
+    }
+
+    /** Title, icon and short blurb for each of the 8 category entries. */
+    private fun rootCategoryActions(): List<GuidedAction> = listOf(
+        GuidedAction.Builder(context)
+            .id(ACTION_ID_CAT_LOCATION)
+            .title(R.string.category_location)
+            .description(R.string.category_location_desc)
+            .build(),
+        GuidedAction.Builder(context)
+            .id(ACTION_ID_CAT_APPEARANCE)
+            .title(R.string.category_appearance)
+            .description(R.string.category_appearance_desc)
+            .build(),
+        GuidedAction.Builder(context)
+            .id(ACTION_ID_CAT_WEATHER)
+            .title(R.string.category_weather)
+            .description(R.string.category_weather_desc)
+            .build(),
+        GuidedAction.Builder(context)
+            .id(ACTION_ID_CAT_CLOCK)
+            .title(R.string.category_clock)
+            .description(R.string.category_clock_desc)
+            .build(),
+        GuidedAction.Builder(context)
+            .id(ACTION_ID_CAT_SCREEN)
+            .title(R.string.category_screen)
+            .description(R.string.category_screen_desc)
+            .build(),
+        GuidedAction.Builder(context)
+            .id(ACTION_ID_CAT_EXPERIMENTAL)
+            .title(R.string.category_experimental)
+            .description(R.string.category_experimental_desc)
+            .build(),
+        GuidedAction.Builder(context)
+            .id(ACTION_ID_CAT_DEMO)
+            .title(R.string.category_demo)
+            .description(R.string.category_demo_desc)
+            .build(),
+        GuidedAction.Builder(context)
+            .id(ACTION_ID_CAT_HOUSEKEEPING)
+            .title(R.string.category_housekeeping)
+            .description(R.string.category_housekeeping_desc)
+            .build()
+    )
+
+    /** Pushes a category screen, leaving this one on the back stack. */
+    private fun pushCategory(category: String) {
+        GuidedStepSupportFragment.add(parentFragmentManager, newInstance(category))
+    }
+
     override fun onCreateGuidance(savedInstanceState: Bundle?): Guidance {
+        val title = when (category) {
+            CAT_LOCATION -> getString(R.string.category_location)
+            CAT_APPEARANCE -> getString(R.string.category_appearance)
+            CAT_WEATHER -> getString(R.string.category_weather)
+            CAT_CLOCK -> getString(R.string.category_clock)
+            CAT_SCREEN -> getString(R.string.category_screen)
+            CAT_EXPERIMENTAL -> getString(R.string.category_experimental)
+            CAT_DEMO -> getString(R.string.category_demo)
+            CAT_HOUSEKEEPING -> getString(R.string.category_housekeeping)
+            else -> getString(R.string.plugin_name)
+        }
+        // The version/description blurb only makes sense on the root screen —
+        // a category screen already has a specific, self-explanatory title.
+        val description = if (category == null) {
+            "v${BuildConfig.VERSION_NAME}\n\n${getString(R.string.plugin_description)}"
+        } else {
+            ""
+        }
         return Guidance(
-            getString(R.string.plugin_name),
-            "v${BuildConfig.VERSION_NAME}\n\n${getString(R.string.plugin_description)}",
+            title,
+            description,
             getString(R.string.settings),
             AppCompatResources.getDrawable(requireActivity(), R.drawable.ic_plugin)
         )
@@ -170,6 +319,18 @@ class SettingsFragment : GuidedStepSupportFragment() {
     override fun onCreateActions(actions: MutableList<GuidedAction>, savedInstanceState: Bundle?) {
         PreferencesManager.init(requireContext())
 
+        // The root screen (category == null) shows only the 8 category
+        // entries. Every other screen builds the full set of settings exactly
+        // as before into a temporary list, then keeps only the ones belonging
+        // to its own category — nothing about how any individual setting is
+        // built has changed, only which subset ends up on which screen.
+        if (category == null) {
+            actions.addAll(rootCategoryActions())
+            return
+        }
+
+        val allActions = mutableListOf<GuidedAction>()
+
         // Signed decimals: the numeric-only TV keyboard hides the minus sign on some
         // devices, so allow a general text field with a numeric-signed-decimal hint.
         val coordInput = InputType.TYPE_CLASS_NUMBER or
@@ -177,7 +338,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 InputType.TYPE_NUMBER_FLAG_SIGNED
 
         val lat = PreferencesManager.latitude.toString()
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_LATITUDE)
                 .title(R.string.setting_latitude_title)
@@ -189,7 +350,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         )
 
         val lon = PreferencesManager.longitude.toString()
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_LONGITUDE)
                 .title(R.string.setting_longitude_title)
@@ -201,7 +362,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         )
 
         val place = PreferencesManager.placeLabel
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_PLACE)
                 .title(R.string.setting_place_title)
@@ -233,10 +394,10 @@ class SettingsFragment : GuidedStepSupportFragment() {
         } else {
             addBuilder.description(R.string.setting_add_location_desc)
         }
-        actions.add(addBuilder.build())
+        allActions.add(addBuilder.build())
 
         val extras = PreferencesManager.savedLocations
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_LOCATIONS)
                 .title(R.string.setting_locations_title)
@@ -260,7 +421,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_CYCLE)
                 .title(R.string.setting_cycle_title)
@@ -275,7 +436,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_UNITS)
                 .title(R.string.setting_units_title)
@@ -285,7 +446,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_BACKGROUND)
                 .title(R.string.setting_background_title)
@@ -297,14 +458,15 @@ class SettingsFragment : GuidedStepSupportFragment() {
                         subAction(SUB_LOCAL, R.string.background_local),
                         subAction(SUB_STOCK, R.string.background_stock),
                         subAction(SUB_RADAR, R.string.background_radar),
-                        subAction(SUB_PACK, R.string.background_pack)
+                        subAction(SUB_PACK, R.string.background_pack),
+                        subAction(SUB_SATELLITE, R.string.background_satellite)
                     )
                 )
                 .build()
         )
 
         val key = PreferencesManager.unsplashKey
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_UNSPLASH)
                 .title(R.string.setting_unsplash_title)
@@ -314,7 +476,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_RADAR_ZOOM)
                 .title(R.string.setting_radar_area_title)
@@ -331,7 +493,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         )
 
         val cached = PackManager.cachedPacks(requireContext())
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_PACK)
                 .title(R.string.setting_pack_title)
@@ -352,7 +514,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_PACK_REFRESH)
                 .title(R.string.setting_pack_refresh_title)
@@ -360,22 +522,24 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(checkbox(ACTION_ID_NOWCAST, R.string.setting_nowcast_title,
+        allActions.add(checkbox(ACTION_ID_REDUCE_BURN_IN, R.string.setting_burn_in_title,
+            R.string.setting_burn_in_desc, PreferencesManager.reduceBurnIn))
+        allActions.add(checkbox(ACTION_ID_NOWCAST, R.string.setting_nowcast_title,
             R.string.setting_nowcast_desc, PreferencesManager.showNowcast))
-        actions.add(checkbox(ACTION_ID_ADVISORIES, R.string.setting_advisories_title,
+        allActions.add(checkbox(ACTION_ID_ADVISORIES, R.string.setting_advisories_title,
             R.string.setting_advisories_desc, PreferencesManager.showAdvisories))
-        actions.add(checkbox(ACTION_ID_YESTERDAY, R.string.setting_yesterday_title,
+        allActions.add(checkbox(ACTION_ID_YESTERDAY, R.string.setting_yesterday_title,
             R.string.setting_yesterday_desc, PreferencesManager.showYesterday))
-        actions.add(checkbox(ACTION_ID_AIR, R.string.setting_air_title,
+        allActions.add(checkbox(ACTION_ID_AIR, R.string.setting_air_title,
             R.string.setting_air_desc, PreferencesManager.showAirQuality))
-        actions.add(checkbox(ACTION_ID_AURORA, R.string.setting_aurora_title,
+        allActions.add(checkbox(ACTION_ID_AURORA, R.string.setting_aurora_title,
             R.string.setting_aurora_desc, PreferencesManager.showAurora))
-        actions.add(checkbox(ACTION_ID_SAFE_RADAR, R.string.setting_safe_radar_title,
+        allActions.add(checkbox(ACTION_ID_SAFE_RADAR, R.string.setting_safe_radar_title,
             R.string.setting_safe_radar_desc, PreferencesManager.safeRadarPalette))
 
-        actions.add(checkbox(ACTION_ID_ALERTS, R.string.setting_alerts_title,
+        allActions.add(checkbox(ACTION_ID_ALERTS, R.string.setting_alerts_title,
             R.string.setting_alerts_desc, PreferencesManager.showAlerts))
-        actions.add(checkbox(ACTION_ID_EXPERIMENTAL, R.string.setting_experimental_title,
+        allActions.add(checkbox(ACTION_ID_EXPERIMENTAL, R.string.setting_experimental_title,
             R.string.setting_experimental_desc, PreferencesManager.experimentalFeatures))
 
         // The gated features are only listed when the gate is open. Showing
@@ -383,44 +547,22 @@ class SettingsFragment : GuidedStepSupportFragment() {
         // hiding them keeps the list honest about what will actually do
         // something.
         if (PreferencesManager.experimentalFeatures) {
-            actions.add(
-                GuidedAction.Builder(context)
-                    .id(ACTION_ID_LOTTIE_TEST)
-                    .title(R.string.setting_lottie_test_title)
-                    .description(
-                        getString(
-                            when (PreferencesManager.lottieSelfTest) {
-                                LottieSelfTest.SHAPES_ONLY -> R.string.lottie_test_shapes
-                                LottieSelfTest.SHAPES_AND_IMAGE -> R.string.lottie_test_both
-                                else -> R.string.lottie_test_off
-                            }
-                        )
-                    )
-                    .subActions(
-                        listOf(
-                            subAction(SUB_LOTTIE_TEST_BASE, R.string.lottie_test_off),
-                            subAction(SUB_LOTTIE_TEST_BASE + 1, R.string.lottie_test_shapes),
-                            subAction(SUB_LOTTIE_TEST_BASE + 2, R.string.lottie_test_both)
-                        )
-                    )
-                    .build()
-            )
-            actions.add(checkbox(ACTION_ID_ANIMATE_PRECIP, R.string.setting_precip_title,
+            allActions.add(checkbox(ACTION_ID_ANIMATE_PRECIP, R.string.setting_precip_title,
                 R.string.setting_precip_desc, PreferencesManager.animatePrecipStored))
-            actions.add(checkbox(ACTION_ID_ANIMATE, R.string.setting_animate_title,
+            allActions.add(checkbox(ACTION_ID_ANIMATE, R.string.setting_animate_title,
                 R.string.setting_animate_desc, PreferencesManager.animateRadarStored))
         }
 
-        actions.add(checkbox(ACTION_ID_HOURLY, R.string.setting_hourly_title,
+        allActions.add(checkbox(ACTION_ID_HOURLY, R.string.setting_hourly_title,
             R.string.setting_hourly_desc, PreferencesManager.showHourly))
-        actions.add(checkbox(ACTION_ID_DAILY, R.string.setting_daily_title,
+        allActions.add(checkbox(ACTION_ID_DAILY, R.string.setting_daily_title,
             R.string.setting_daily_desc, PreferencesManager.showDaily))
-        actions.add(checkbox(ACTION_ID_STATS, R.string.setting_stats_title,
+        allActions.add(checkbox(ACTION_ID_STATS, R.string.setting_stats_title,
             R.string.setting_stats_desc, PreferencesManager.showStats))
-        actions.add(checkbox(ACTION_ID_SUN, R.string.setting_sun_title,
+        allActions.add(checkbox(ACTION_ID_SUN, R.string.setting_sun_title,
             R.string.setting_sun_desc, PreferencesManager.showSun))
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_WORLD)
                 .title(R.string.setting_world_title)
@@ -435,7 +577,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_THEME)
                 .title(R.string.setting_theme_title)
@@ -450,7 +592,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_LABELS)
                 .title(R.string.setting_labels_title)
@@ -467,7 +609,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         )
 
         val basemap = PreferencesManager.basemapUrl
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_BASEMAP)
                 .title(R.string.setting_basemap_title)
@@ -480,7 +622,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         )
 
         val basemapAttr = PreferencesManager.basemapAttribution
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_BASEMAP_ATTR)
                 .title(R.string.setting_basemap_attr_title)
@@ -493,23 +635,23 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(checkbox(ACTION_ID_CLOCK, R.string.setting_clock_title,
+        allActions.add(checkbox(ACTION_ID_CLOCK, R.string.setting_clock_title,
             R.string.setting_clock_desc, PreferencesManager.showClock))
         // Clock sub-options only when there's a clock to configure.
         if (PreferencesManager.showClock) {
-            actions.add(picker(ACTION_ID_CLOCK_POSITION, R.string.setting_clock_position_title,
+            allActions.add(picker(ACTION_ID_CLOCK_POSITION, R.string.setting_clock_position_title,
                 SUB_CLOCK_POS_BASE, CLOCK_POSITIONS, PreferencesManager.clockPosition))
-            actions.add(picker(ACTION_ID_CLOCK_SIZE, R.string.setting_clock_size_title,
+            allActions.add(picker(ACTION_ID_CLOCK_SIZE, R.string.setting_clock_size_title,
                 SUB_CLOCK_SIZE_BASE, CLOCK_SIZES, PreferencesManager.clockSize))
-            actions.add(picker(ACTION_ID_CLOCK_STYLE, R.string.setting_clock_style_title,
+            allActions.add(picker(ACTION_ID_CLOCK_STYLE, R.string.setting_clock_style_title,
                 SUB_CLOCK_STYLE_BASE, CLOCK_STYLES, PreferencesManager.clockStyle))
-            actions.add(picker(ACTION_ID_CLOCK_HOURS, R.string.setting_clock_hours_title,
+            allActions.add(picker(ACTION_ID_CLOCK_HOURS, R.string.setting_clock_hours_title,
                 SUB_CLOCK_HOURS_BASE, CLOCK_HOUR_MODES, PreferencesManager.clockHours))
-            actions.add(checkbox(ACTION_ID_CLOCK_DATE, R.string.setting_clock_date_title,
+            allActions.add(checkbox(ACTION_ID_CLOCK_DATE, R.string.setting_clock_date_title,
                 R.string.setting_clock_date_desc, PreferencesManager.showClockDate))
         }
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_SAFE_AREA)
                 .title(R.string.setting_safe_area_title)
@@ -536,10 +678,10 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(checkbox(ACTION_ID_IDLE_FULL, R.string.setting_idle_full_title,
+        allActions.add(checkbox(ACTION_ID_IDLE_FULL, R.string.setting_idle_full_title,
             R.string.setting_idle_full_desc, PreferencesManager.idleFullFrame))
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_SCALE)
                 .title(R.string.setting_scale_title)
@@ -565,7 +707,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_HOLIDAY)
                 .title(R.string.setting_holiday_title)
@@ -575,11 +717,11 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(checkbox(ACTION_ID_DEMO, R.string.setting_demo_title,
+        allActions.add(checkbox(ACTION_ID_DEMO, R.string.setting_demo_title,
             R.string.setting_demo_desc, PreferencesManager.demoMode))
 
         val demoLabel = PreferencesManager.demoLabel
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_DEMO_LABEL)
                 .title(R.string.setting_demo_label_title)
@@ -589,7 +731,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_REFRESH)
                 .title(R.string.setting_refresh_title)
@@ -597,7 +739,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_REPORT)
                 .title(R.string.setting_report_title)
@@ -605,10 +747,10 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        actions.add(picker(ACTION_ID_UPDATE_INTERVAL, R.string.setting_update_interval_title,
+        allActions.add(picker(ACTION_ID_UPDATE_INTERVAL, R.string.setting_update_interval_title,
             SUB_UPDATE_INTERVAL_BASE, UPDATE_INTERVALS, PreferencesManager.updateCheckInterval))
 
-        actions.add(
+        allActions.add(
             GuidedAction.Builder(context)
                 .id(ACTION_ID_UPDATE)
                 .title(R.string.setting_update_title)
@@ -619,7 +761,12 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 )
                 .build()
         )
+
+        // Keep only this screen's category, in the same relative order the
+        // settings already had — no reordering logic needed beyond that.
+        actions.addAll(allActions.filter { categoryOf(it.id) == category })
     }
+
 
     /**
      * A one-of-many picker built from a value/label list.
@@ -719,22 +866,6 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 }
                 return true
             }
-        }
-
-        if (action.id in SUB_LOTTIE_TEST_BASE until SUB_LOTTIE_TEST_BASE + SUB_RANGE) {
-            val mode = (action.id - SUB_LOTTIE_TEST_BASE).toInt()
-            PreferencesManager.lottieSelfTest = mode
-            findActionById(ACTION_ID_LOTTIE_TEST)?.description = getString(
-                when (mode) {
-                    LottieSelfTest.SHAPES_ONLY -> R.string.lottie_test_shapes
-                    LottieSelfTest.SHAPES_AND_IMAGE -> R.string.lottie_test_both
-                    else -> R.string.lottie_test_off
-                }
-            )
-            notifyActionChanged(findActionPositionById(ACTION_ID_LOTTIE_TEST))
-            toast(getString(R.string.toast_lottie_test_hint))
-            pushUpdate(WallpaperProviderContract.UpdateReason.DATA_CHANGED)
-            return true
         }
 
         if (action.id in SUB_SAFE_BASE until SUB_SAFE_BASE + SUB_RANGE) {
@@ -850,9 +981,23 @@ class SettingsFragment : GuidedStepSupportFragment() {
             SUB_STOCK -> Backgrounds.SOURCE_STOCK
             SUB_RADAR -> Backgrounds.SOURCE_RADAR
             SUB_PACK -> Backgrounds.SOURCE_PACK
+            SUB_SATELLITE -> Backgrounds.SOURCE_SATELLITE
             else -> Backgrounds.SOURCE_SCENE
         }
         PreferencesManager.backgroundSource = source
+
+        // Real cloud imagery only reaches the Americas, Atlantic and Pacific —
+        // there's no free, keyless source for the gap in between (roughly the
+        // Middle East through China and Southeast Asia). Worth saying so
+        // immediately rather than have someone wonder why the background
+        // never changed.
+        if (source == Backgrounds.SOURCE_SATELLITE &&
+            !SatelliteClient.isAvailable(
+                PreferencesManager.currentLatitude, PreferencesManager.currentLongitude
+            )
+        ) {
+            toast(getString(R.string.toast_satellite_unavailable))
+        }
 
         findActionById(ACTION_ID_BACKGROUND)?.description = backgroundLabel()
         notifyActionChanged(findActionPositionById(ACTION_ID_BACKGROUND))
@@ -885,10 +1030,22 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
     override fun onGuidedActionClicked(action: GuidedAction) {
         when (action.id) {
+            ACTION_ID_CAT_LOCATION -> pushCategory(CAT_LOCATION)
+            ACTION_ID_CAT_APPEARANCE -> pushCategory(CAT_APPEARANCE)
+            ACTION_ID_CAT_WEATHER -> pushCategory(CAT_WEATHER)
+            ACTION_ID_CAT_CLOCK -> pushCategory(CAT_CLOCK)
+            ACTION_ID_CAT_SCREEN -> pushCategory(CAT_SCREEN)
+            ACTION_ID_CAT_EXPERIMENTAL -> pushCategory(CAT_EXPERIMENTAL)
+            ACTION_ID_CAT_DEMO -> pushCategory(CAT_DEMO)
+            ACTION_ID_CAT_HOUSEKEEPING -> pushCategory(CAT_HOUSEKEEPING)
             ACTION_ID_UNITS -> {
                 PreferencesManager.useMetric = action.isChecked
                 action.description = unitsLabel()
                 notifyActionChanged(findActionPositionById(ACTION_ID_UNITS))
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_REDUCE_BURN_IN -> {
+                PreferencesManager.reduceBurnIn = action.isChecked
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
             ACTION_ID_NOWCAST -> {
@@ -1344,6 +1501,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
             Backgrounds.SOURCE_RADAR -> R.string.background_radar
             Backgrounds.SOURCE_GRADIENT -> R.string.background_gradient
             Backgrounds.SOURCE_PACK -> R.string.background_pack
+            Backgrounds.SOURCE_SATELLITE -> R.string.background_satellite
             else -> R.string.background_scene
         }
     )

@@ -8,6 +8,24 @@
     <string name="projectivy_not_installed">Warning, this plugin requires Projectivy Launcher which does not seem to be installed.</string>
 
     <string name="settings">Settings</string>
+    <!-- The 8 category entries on the settings root screen. -->
+    <string name="category_location">Location</string>
+    <string name="category_location_desc">Where the weather is for, saved places, units</string>
+    <string name="category_appearance">Appearance</string>
+    <string name="category_appearance_desc">Background, radar, packs, map style, colours</string>
+    <string name="category_weather">Weather info</string>
+    <string name="category_weather_desc">Which panels show: forecast, alerts, air quality and more</string>
+    <string name="category_clock">Clock</string>
+    <string name="category_clock_desc">Show a clock, and how it looks</string>
+    <string name="category_screen">Screen &amp; layout</string>
+    <string name="category_screen_desc">Burn-in reduction, fitting your app row, idle behaviour</string>
+    <string name="category_experimental">Experimental</string>
+    <string name="category_experimental_desc">Unproven animation options, off by default</string>
+    <string name="category_demo">Demo mode</string>
+    <string name="category_demo_desc">Hide your location for screenshots</string>
+    <string name="category_housekeeping">Housekeeping</string>
+    <string name="category_housekeeping_desc">Refresh, updates, and the debug report</string>
+
     <string name="setting_latitude_title">Latitude</string>
     <string name="setting_longitude_title">Longitude</string>
     <string name="setting_place_title">Location name</string>
@@ -29,8 +47,14 @@
     <string name="cycle_every">Each refresh \u2014 about every 15 minutes</string>
 
     <string name="setting_units_title">Use metric units</string>
+    <string name="setting_burn_in_title">Reduce screen burn-in</string>
+    <string name="setting_burn_in_desc">Slowly drifts the panel by a few pixels so text doesn\'t sit on the same OLED pixels for hours</string>
+
     <string name="setting_nowcast_title">Rain and snow timing</string>
     <string name="setting_nowcast_desc">Shows \"starting in 25 min\" when precipitation is imminent</string>
+    <string name="setting_burn_in_title">Reduce screen burn-in</string>
+    <string name="setting_burn_in_desc">Nudges the panel and clock a few pixels every so often. On by default \u2014 helps on OLED and plasma displays, imperceptible on anything else.</string>
+
     <string name="setting_advisories_title">Helpful advice</string>
     <string name="setting_advisories_desc">Lines like \"frost likely tonight\", \"dry until 4 PM\" or \"good drying day\"</string>
     <string name="setting_yesterday_title">Compare to yesterday</string>
@@ -47,11 +71,6 @@
     <string name="setting_experimental_title">Experimental features</string>
     <string name="setting_experimental_desc">Reveal animation options. These now encode a short video rather than using Lottie, which didn\'t work. Still unproven \u2014 everything falls back to a still wallpaper.</string>
 
-    <string name="setting_lottie_test_title">Lottie self-test (diagnostic)</string>
-    <string name="lottie_test_off">Off \u2014 normal wallpaper</string>
-    <string name="lottie_test_shapes">Shapes only \u2014 no embedded image</string>
-    <string name="lottie_test_both">Shapes plus an embedded image</string>
-    <string name="toast_lottie_test_hint">Back out to the home screen to see the result</string>
 
     <string name="setting_precip_title">Animate rain and snow</string>
     <string name="setting_precip_desc">Falling rain or snow over the background when it\'s wet out. Encodes a short video.</string>
@@ -190,6 +209,8 @@
     <string name="background_stock">Stock photos (Unsplash)</string>
     <string name="background_radar">Live precipitation radar</string>
     <string name="background_pack">Community wallpaper pack</string>
+    <string name="background_satellite">Satellite</string>
+    <string name="toast_satellite_unavailable">No satellite coverage here \u2014 falling back to the default background. Coverage is the Americas, Atlantic and Pacific; there\'s a gap through the Middle East, China and Southeast Asia where no free source is available.</string>
 
     <string name="setting_pack_title">Wallpaper pack</string>
     <string name="setting_pack_refresh_title">Refresh pack list</string>
@@ -198,7 +219,7 @@
     <string name="pack_none_available">No packs yet — refresh the list</string>
     <string name="pack_unknown">Unavailable (%1$s)</string>
     <string name="pack_kind_static">Still images</string>
-    <string name="pack_kind_lottie">Animated — keeps the weather readout</string>
+    <string name="pack_kind_lottie">Animated — no weather readout</string>
     <string name="pack_kind_video">Video — no weather readout</string>
 
     <string name="toast_pick_a_pack">Choose a wallpaper pack below</string>

@@ -61,10 +61,11 @@ object PreferencesManager {
     const val KEY_CLOCK_HOURS = "clockHours"
     const val KEY_SAFE_BOTTOM = "safeBottomPercent"
     const val KEY_IDLE_FULL = "idleFullFrame"
-    const val KEY_LOTTIE_TEST = "lottieSelfTest"
     const val KEY_UPDATE_INTERVAL = "updateCheckInterval"
     const val KEY_UPDATE_LAST_AT = "updateLastCheckedAt"
     const val KEY_UPDATE_FOUND = "updateVersionFound"
+    const val KEY_REDUCE_BURN_IN = "reduceBurnIn"
+    const val KEY_REDUCE_BURN_IN = "reduceBurnIn"
     const val KEY_BASEMAP_URL = "basemapUrl"
     const val KEY_BASEMAP_ATTRIBUTION = "basemapAttribution"
 
@@ -369,16 +370,24 @@ object PreferencesManager {
         set(v) = prefs.edit().putString(KEY_UPDATE_FOUND, v).apply()
 
     /**
-     * Lottie diagnostic mode. 0 off, 1 shapes only, 2 shapes plus an image.
+     * Nudges the panel, clock and banner by a few pixels on a slow rotating
+     * cycle, to spread wear across more pixels on OLED and plasma displays.
      *
-     * When set, the wallpaper is replaced by a deliberately minimal test file
-     * so we can find out whether the launcher can load a Lottie from our URI at
-     * all. Persisted so it survives the settings round trip, and it overrides
-     * everything else until switched off.
+     * This is a wallpaper: unlike most on-screen content it can sit unchanged
+     * on a home screen for hours at a stretch, and the panel is exactly the
+     * high-contrast, fixed-position content that causes burn-in fastest. The
+     * shift is small enough (a few pixels at 1920x1080) to be imperceptible,
+     * and only ever applies to the drawn UI — never to layout decisions like
+     * whether the forecast strips fit, which are computed before this and
+     * have generous margin either side of the shift's range.
+     *
+     * On by default: the cost is a couple of extra lines in a canvas
+     * transform, so there's no real reason to leave it off even on a panel
+     * that isn't OLED.
      */
-    var lottieSelfTest: Int
-        get() = prefs.getInt(KEY_LOTTIE_TEST, 0)
-        set(v) = prefs.edit().putInt(KEY_LOTTIE_TEST, v).apply()
+    var reduceBurnIn: Boolean
+        get() = prefs.getBoolean(KEY_REDUCE_BURN_IN, true)
+        set(v) = prefs.edit().putBoolean(KEY_REDUCE_BURN_IN, v).apply()
 
     /** Set by the service from LAUNCHER_IDLE_MODE_CHANGED. */
     @Volatile var launcherIdle: Boolean = false
@@ -474,6 +483,16 @@ object PreferencesManager {
     var safeRadarPalette: Boolean
         get() = prefs.getBoolean(KEY_SAFE_RADAR, false)
         set(v) = prefs.edit().putBoolean(KEY_SAFE_RADAR, v).apply()
+
+    /**
+     * Slowly drifts the panel's on-screen position by a few pixels to spread
+     * wear on burn-in-prone displays. On by default: the shift is small enough
+     * to be imperceptible, so there's little reason to turn it off, but a
+     * toggle exists for anyone who wants pixel-perfect placement regardless.
+     */
+    var reduceBurnIn: Boolean
+        get() = prefs.getBoolean(KEY_REDUCE_BURN_IN, true)
+        set(v) = prefs.edit().putBoolean(KEY_REDUCE_BURN_IN, v).apply()
 
     /**
      * Reveals unproven features.
@@ -602,8 +621,9 @@ object PreferencesManager {
         put(KEY_CLOCK_HOURS, clockHours)
         put(KEY_SAFE_BOTTOM, safeBottomPercent)
         put(KEY_IDLE_FULL, idleFullFrame)
-        put(KEY_LOTTIE_TEST, lottieSelfTest)
         put(KEY_UPDATE_INTERVAL, updateCheckInterval)
+        put(KEY_REDUCE_BURN_IN, reduceBurnIn)
+        put(KEY_REDUCE_BURN_IN, reduceBurnIn)
         put(KEY_LOCATIONS, prefs.getString(KEY_LOCATIONS, "[]"))
         put(KEY_BASEMAP_URL, basemapUrl)
         put(KEY_BASEMAP_ATTRIBUTION, basemapAttribution)
@@ -656,9 +676,14 @@ object PreferencesManager {
             if (json.has(KEY_CLOCK_HOURS)) clockHours = json.getString(KEY_CLOCK_HOURS)
             if (json.has(KEY_SAFE_BOTTOM)) safeBottomPercent = json.getInt(KEY_SAFE_BOTTOM)
             if (json.has(KEY_IDLE_FULL)) idleFullFrame = json.getBoolean(KEY_IDLE_FULL)
-            if (json.has(KEY_LOTTIE_TEST)) lottieSelfTest = json.getInt(KEY_LOTTIE_TEST)
             if (json.has(KEY_UPDATE_INTERVAL)) {
                 updateCheckInterval = json.getString(KEY_UPDATE_INTERVAL)
+            }
+            if (json.has(KEY_REDUCE_BURN_IN)) {
+                reduceBurnIn = json.getBoolean(KEY_REDUCE_BURN_IN)
+            }
+            if (json.has(KEY_REDUCE_BURN_IN)) {
+                reduceBurnIn = json.getBoolean(KEY_REDUCE_BURN_IN)
             }
             if (json.has(KEY_LOCATIONS)) {
                 prefs.edit().putString(KEY_LOCATIONS, json.getString(KEY_LOCATIONS)).apply()

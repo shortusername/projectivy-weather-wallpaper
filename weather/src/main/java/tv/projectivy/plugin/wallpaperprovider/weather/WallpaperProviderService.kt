@@ -180,10 +180,6 @@ class WallpaperProviderService : Service() {
             WeatherRenderer.currentAir = currentAir()
 
             return try {
-                // Diagnostic mode overrides everything, so the result is
-                // unambiguous.
-                selfTestWallpaper()?.let { return listOf(it) }
-
                 // An animated pack is rendered by the launcher, not by us, so the
                 // panel gets embedded into the animation instead of composited.
                 animatedWallpaper(conditions)?.let { return listOf(it) }
@@ -323,6 +319,14 @@ class WallpaperProviderService : Service() {
         val minute = if (PreferencesManager.showClock)
             System.currentTimeMillis() / 60_000L else 0L
 
+        // Without this, an unchanging scene (same weather, same settings)
+        // would keep returning the identical cached file forever, and the
+        // burn-in shift would never actually advance. Reads the same counter
+        // WeatherRenderer uses to pick the offset, so there's one interval
+        // value rather than two copies that could drift apart.
+        val burnInBucket = if (PreferencesManager.reduceBurnIn)
+            WeatherRenderer.burnInBucket() else 0L
+
         val key = listOf(
             c.temperature, c.weatherCode, c.apparentTemperature, c.high, c.low,
             c.windSpeed, c.windDirection, c.humidity,
@@ -349,7 +353,8 @@ class WallpaperProviderService : Service() {
             WeatherRenderer.currentAir?.aqi,
             Advisories.top(c)?.text,
             UpdateChecker.pendingVersion(BuildConfig.VERSION_NAME),
-            minute
+            minute,
+            burnInBucket
         ).joinToString("|")
 
         val cached = lastRenderFile
@@ -363,33 +368,6 @@ class WallpaperProviderService : Service() {
         lastRenderKey = key
         lastRenderFile = file
         return file
-    }
-
-    /**
-     * The Lottie diagnostic, when switched on.
-     *
-     * Served exactly like any other animation — same content:// URI, same
-     * permission grant — so the only variable is the file's contents.
-     */
-    private fun selfTestWallpaper(): Wallpaper? {
-        val mode = PreferencesManager.lottieSelfTest
-        if (mode == LottieSelfTest.OFF) return null
-        return try {
-            val file = LottieSelfTest.build(cacheDir, mode) ?: return null
-            val uri = FileProvider.getUriForFile(this, "$packageName.fileprovider", file)
-            grantUriPermission(PROJECTIVY_PACKAGE, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            Wallpaper(
-                uri = uri.toString(),
-                type = WallpaperType.LOTTIE,
-                displayMode = WallpaperDisplayMode.CROP,
-                title = "Lottie self-test $mode",
-                source = "diagnostic",
-                author = ""
-            )
-        } catch (t: Throwable) {
-            Log.w("WeatherWallpaper", "Self-test failed: ${t.message}")
-            null
-        }
     }
 
     /**

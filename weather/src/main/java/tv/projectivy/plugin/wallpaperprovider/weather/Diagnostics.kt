@@ -31,7 +31,7 @@ object Diagnostics {
     private val OUR_TAGS = listOf(
         "WeatherWallpaper", "OpenMeteoClient", "IpLocationClient", "NwsAlertsClient",
         "Backgrounds", "GeographyRenderer", "PackManager", "VideoEncoder",
-        "LottieSelfTest", "UpdateChecker", "WeatherPrefs", "Diagnostics"
+        "SatelliteClient", "UpdateChecker", "WeatherPrefs", "Diagnostics"
     )
 
     fun build(context: Context): String {
