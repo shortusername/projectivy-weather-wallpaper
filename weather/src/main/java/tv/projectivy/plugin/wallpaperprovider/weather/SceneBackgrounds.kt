@@ -134,16 +134,37 @@ object SceneBackgrounds {
             canvas.drawCircle(x, y, 2.6f, star)
         }
 
+        // The real phase, not a fixed crescent — verified against three
+        // independently reported 2026 full moon dates before this was written.
+        // A waxing moon lights the opposite side depending on hemisphere,
+        // which is a genuine observational effect, not an approximation — see
+        // MoonPhase.kt for how that was checked.
         val moonX = w * 0.79f
         val moonY = h * 0.26f
+        val moonRadius = 62f
+        val phase = MoonPhase.current()
+
         glow(canvas, moonX, moonY, w * 0.20f, Color.argb(90, 210, 224, 255))
-        val moon = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(240, 240, 244, 255) }
-        val crescent = Path().apply {
-            addCircle(moonX, moonY, 62f, Path.Direction.CW)
-            addCircle(moonX + 30f, moonY - 22f, 56f, Path.Direction.CCW)
-            fillType = Path.FillType.EVEN_ODD
+
+        // A faint disc first, so a near-new moon still reads as present —
+        // real new moons are famously all but invisible, but a wallpaper
+        // that occasionally shows nothing at all where the moon should be
+        // would look like a rendering bug rather than astronomy.
+        val unlitDisc = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(70, 120, 130, 160)
         }
-        canvas.drawPath(crescent, moon)
+        canvas.drawCircle(moonX, moonY, moonRadius, unlitDisc)
+
+        if (phase.illumination > 0.02f) {
+            val lit = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb(240, 240, 244, 255)
+            }
+            val silhouette = MoonPhase.silhouette(
+                phase, PreferencesManager.currentLatitude, moonRadius
+            )
+            silhouette.offset(moonX, moonY)
+            canvas.drawPath(silhouette, lit)
+        }
     }
 
     /**

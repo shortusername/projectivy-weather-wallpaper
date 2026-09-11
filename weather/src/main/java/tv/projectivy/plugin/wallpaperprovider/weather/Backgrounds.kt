@@ -48,6 +48,7 @@ object Backgrounds {
     const val SOURCE_LOCAL = "local"
     const val SOURCE_STOCK = "stock"
     const val SOURCE_RADAR = "radar"
+    const val SOURCE_SATELLITE = "satellite"
 
     /** Folder the user drops images into. No runtime permission needed. */
     fun localFolder(context: Context): File =
@@ -65,8 +66,17 @@ object Backgrounds {
             SOURCE_PACK -> packImage(context, c, width, height, phase)
             SOURCE_LOCAL -> localPhoto(context, c, width, height, phase)?.let { it to null }
             SOURCE_STOCK -> stockPhoto(c, width, height, phase)
+            SOURCE_SATELLITE -> SatelliteClient.fetch(
+                PreferencesManager.currentLatitude, PreferencesManager.currentLongitude,
+                width, height
+            )
             SOURCE_RADAR -> radarMap(context, width, height, phase, includeRadar = true)?.let {
-                it to "Radar: RainViewer · Map: © OpenStreetMap contributors"
+                // radarAttribution() already existed with the correct logic —
+                // Natural Earth credit for the built-in map, OSM only if a
+                // custom basemap is actually configured — but this call site
+                // had a hardcoded OSM string instead of calling it, so every
+                // default-radar render was misattributing the map. Fixed.
+                it to radarAttribution()
             }
             else -> null
         }

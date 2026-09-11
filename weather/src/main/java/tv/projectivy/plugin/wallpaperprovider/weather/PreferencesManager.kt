@@ -65,7 +65,6 @@ object PreferencesManager {
     const val KEY_UPDATE_LAST_AT = "updateLastCheckedAt"
     const val KEY_UPDATE_FOUND = "updateVersionFound"
     const val KEY_REDUCE_BURN_IN = "reduceBurnIn"
-    const val KEY_REDUCE_BURN_IN = "reduceBurnIn"
     const val KEY_BASEMAP_URL = "basemapUrl"
     const val KEY_BASEMAP_ATTRIBUTION = "basemapAttribution"
 
@@ -485,16 +484,6 @@ object PreferencesManager {
         set(v) = prefs.edit().putBoolean(KEY_SAFE_RADAR, v).apply()
 
     /**
-     * Slowly drifts the panel's on-screen position by a few pixels to spread
-     * wear on burn-in-prone displays. On by default: the shift is small enough
-     * to be imperceptible, so there's little reason to turn it off, but a
-     * toggle exists for anyone who wants pixel-perfect placement regardless.
-     */
-    var reduceBurnIn: Boolean
-        get() = prefs.getBoolean(KEY_REDUCE_BURN_IN, true)
-        set(v) = prefs.edit().putBoolean(KEY_REDUCE_BURN_IN, v).apply()
-
-    /**
      * Reveals unproven features.
      *
      * Off by default, and the gated features stay off even when it's on — this
@@ -623,7 +612,6 @@ object PreferencesManager {
         put(KEY_IDLE_FULL, idleFullFrame)
         put(KEY_UPDATE_INTERVAL, updateCheckInterval)
         put(KEY_REDUCE_BURN_IN, reduceBurnIn)
-        put(KEY_REDUCE_BURN_IN, reduceBurnIn)
         put(KEY_LOCATIONS, prefs.getString(KEY_LOCATIONS, "[]"))
         put(KEY_BASEMAP_URL, basemapUrl)
         put(KEY_BASEMAP_ATTRIBUTION, basemapAttribution)
@@ -678,9 +666,6 @@ object PreferencesManager {
             if (json.has(KEY_IDLE_FULL)) idleFullFrame = json.getBoolean(KEY_IDLE_FULL)
             if (json.has(KEY_UPDATE_INTERVAL)) {
                 updateCheckInterval = json.getString(KEY_UPDATE_INTERVAL)
-            }
-            if (json.has(KEY_REDUCE_BURN_IN)) {
-                reduceBurnIn = json.getBoolean(KEY_REDUCE_BURN_IN)
             }
             if (json.has(KEY_REDUCE_BURN_IN)) {
                 reduceBurnIn = json.getBoolean(KEY_REDUCE_BURN_IN)

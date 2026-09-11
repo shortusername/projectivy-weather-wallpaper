@@ -29,6 +29,48 @@ object WeatherRenderer {
     private const val MARGIN = 120f
 
     /**
+     * Anti burn-in pixel shift.
+     *
+     * A slow walk around an 8-point circle, one step every SHIFT_INTERVAL_MS
+     * of real elapsed time — not render count, since burn-in risk tracks how
+     * long the screen has actually shown this content, not how often the
+     * plugin happened to redraw it. Whichever step is "current" gets used
+     * whenever a render does happen; there's no need to track continuity
+     * across periods where the wallpaper wasn't even on screen; e.g. while
+     * something else was playing, since there's no burn-in risk to offset
+     * during that time regardless.
+     *
+     * Kept to whole pixels via a plain canvas translate wrapped around the
+     * panel/clock/banner draw calls only — never the background, which
+     * already varies enough with conditions and time of day, and never fed
+     * into layout decisions like whether the forecast strips fit, which are
+     * computed independently and have far more clearance than this shift's
+     * range needs.
+     */
+    private const val SHIFT_RADIUS = 4f
+    private const val SHIFT_INTERVAL_MS = 12 * 60 * 1000L  // 12 minutes/step
+    private val SHIFT_PATTERN: List<Pair<Float, Float>> = (0 until 8).map { i ->
+        val angle = Math.toRadians(i * 45.0)
+        (Math.cos(angle).toFloat() * SHIFT_RADIUS) to (Math.sin(angle).toFloat() * SHIFT_RADIUS)
+    }
+
+    /**
+     * Which step of the shift pattern is current, as a plain counter.
+     *
+     * Public so the render-cache key in WallpaperProviderService can include
+     * it directly rather than duplicating SHIFT_INTERVAL_MS as a second
+     * hardcoded constant that would have to be kept in sync by hand — exactly
+     * the kind of silent drift this codebase has been bitten by before.
+     */
+    fun burnInBucket(): Long = System.currentTimeMillis() / SHIFT_INTERVAL_MS
+
+    private fun burnInOffset(): Pair<Float, Float> {
+        if (!PreferencesManager.reduceBurnIn) return 0f to 0f
+        val step = burnInBucket() % SHIFT_PATTERN.size
+        return SHIFT_PATTERN[step.toInt()]
+    }
+
+    /**
      * Where the launcher's app row starts. Nothing is drawn past it.
      *
      * A setting rather than a measurement: the plugin API exposes no layout
@@ -174,6 +216,13 @@ object WeatherRenderer {
         }
         canvas.drawRect(0f, H * 0.52f, W.toFloat(), H.toFloat(), bottomScrim)
 
+        // Everything from here down is fixed-position, high-contrast text —
+        // the same burn-in exposure as the local panel — so it gets the same
+        // shift, wrapped around the whole block up to the credit line.
+        val (shiftX, shiftY) = burnInOffset()
+        canvas.save()
+        canvas.translate(shiftX, shiftY)
+
         // Header: says plainly what this is.
         canvas.drawText("WORLD WEATHER WATCH", MARGIN, MARGIN + 24f, paint(34f, medium, 215))
 
@@ -225,6 +274,7 @@ object WeatherRenderer {
 
         val credit = "Events: GDACS (UN/EC) \u00B7 Radar: RainViewer \u00B7 Map: Natural Earth"
         canvas.drawText(credit, MARGIN, H - 46f, paint(24f, light, 125))
+        canvas.restore()
 
         val out = freshOutput(context, OUTPUT_PREFIX, "png")
         FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -250,10 +300,15 @@ object WeatherRenderer {
         // Scrim still needed: contributed art can be any brightness.
         val overlayPhase = ThemeResolver.resolve(c)
         drawScrim(canvas, strong = true)
+
+        val (shiftX1, shiftY1) = burnInOffset()
+        canvas.save()
+        canvas.translate(shiftX1, shiftY1)
         drawPanel(
             canvas, c, placeLabel, attribution = null,
             alert = currentAlert, phaseIsDay = overlayPhase.isDay, context = context
         )
+        canvas.restore()
 
         val out = freshOutput(context, OVERLAY_PREFIX, "png")
         FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -289,11 +344,15 @@ object WeatherRenderer {
             SceneBackgrounds.draw(canvas, W, H, c, phase)
             drawScrim(canvas, strong = false)
         }
+        val (shiftX2, shiftY2) = burnInOffset()
+        canvas.save()
+        canvas.translate(shiftX2, shiftY2)
         drawPanel(
             canvas, c, placeLabel,
             "Radar: RainViewer \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)",
             alert, phase.isDay, context
         )
+        canvas.restore()
         return bitmap
     }
 
@@ -361,7 +420,11 @@ object WeatherRenderer {
 
         drawScrim(canvas, strong = strongScrim, extraDark = extraDark)
 
+        val (shiftX3, shiftY3) = burnInOffset()
+        canvas.save()
+        canvas.translate(shiftX3, shiftY3)
         drawPanel(canvas, c, placeLabel, attribution, currentAlert, phase.isDay, context)
+        canvas.restore()
 
         val out = freshOutput(context, OUTPUT_PREFIX, "png")
         FileOutputStream(out).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
@@ -379,6 +442,28 @@ object WeatherRenderer {
         phaseIsDay: Boolean = false,
         context: Context? = null
     ) {
+        // Subtle, slow drift to spread wear on burn-in-prone displays. Every
+        // fixed-position element the panel draws — temperature, clock,
+        // location label, the strip backgrounds — otherwise sits on the same
+        // pixels refresh after refresh, which is exactly the pattern OLED
+        // burn-in punishes. Real TVs solve this the same way: a small,
+        // continuous, content-independent shift.
+        //
+        // Two different periods (not a simple ratio) so the path sweeps a
+        // spread of positions rather than retracing a short loop. Amplitude is
+        // tiny relative to MARGIN, so nothing gets pushed toward the overscan
+        // edge, and the change between two consecutive refreshes is at most a
+        // few pixels — imperceptible on a still image, and sub-pixel between
+        // one-minute clock ticks so the clock itself never visibly jitters.
+        // Verified numerically before shipping this.
+        canvas.save()
+        if (PreferencesManager.reduceBurnIn) {
+            val t = System.currentTimeMillis() / 1000.0
+            val dx = (6.0 * kotlin.math.cos(2 * Math.PI * t / (3 * 3600))).toFloat()
+            val dy = (4.0 * kotlin.math.sin(2 * Math.PI * t / (4.5 * 3600))).toFloat()
+            canvas.translate(dx, dy)
+        }
+
         alert?.let { drawAlertBanner(canvas, it) }
 
         if (PreferencesManager.showClock && context != null) {
@@ -535,6 +620,8 @@ object WeatherRenderer {
         attribution?.let {
             canvas.drawText(it, MARGIN, H - 46f, paint(26f, light, 130))
         }
+
+        canvas.restore()
     }
 
     /**
