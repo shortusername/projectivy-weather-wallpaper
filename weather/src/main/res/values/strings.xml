@@ -48,12 +48,10 @@
 
     <string name="setting_units_title">Use metric units</string>
     <string name="setting_burn_in_title">Reduce screen burn-in</string>
-    <string name="setting_burn_in_desc">Slowly drifts the panel by a few pixels so text doesn\'t sit on the same OLED pixels for hours</string>
+    <string name="setting_burn_in_desc">Nudges the panel and clock a few pixels every so often. On by default \u2014 helps on OLED and plasma displays, imperceptible on anything else.</string>
 
     <string name="setting_nowcast_title">Rain and snow timing</string>
     <string name="setting_nowcast_desc">Shows \"starting in 25 min\" when precipitation is imminent</string>
-    <string name="setting_burn_in_title">Reduce screen burn-in</string>
-    <string name="setting_burn_in_desc">Nudges the panel and clock a few pixels every so often. On by default \u2014 helps on OLED and plasma displays, imperceptible on anything else.</string>
 
     <string name="setting_advisories_title">Helpful advice</string>
     <string name="setting_advisories_desc">Lines like \"frost likely tonight\", \"dry until 4 PM\" or \"good drying day\"</string>
