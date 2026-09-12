@@ -93,6 +93,26 @@ over it. A video pack shows no temperature, no conditions, no severe weather
 banner. Users are warned when they select one. Make sure your video is worth
 that, or submit stills instead.
 
+**A second cost, confirmed on at least one device:** video playback commonly
+tells the system to stay awake while it plays, and that can prevent the
+screensaver from starting for as long as your pack is showing. This isn't
+something the plugin controls — it comes from whatever plays the video back —
+and it isn't specific to any one pack, but it's a real cost of choosing video
+over stills that's worth knowing before you invest time in one.
+
+**A third, harder limit on some hardware:** on at least one low-power
+projector, video playback reliably fails outright — a few seconds in, the
+screen goes black and stays there, every loop. A logcat capture traced this
+to the device's own decoder (`OMX.MS.AVC.Decoder`, MStar-family, common in
+budget Android TV boxes) refusing a routine buffer renegotiation and
+deliberately blanking the screen as its own error response, not a crash.
+Several encoder settings were tried without resolving it, which points to a
+vendor firmware limitation rather than something fixable in how a video is
+encoded. If this affects the built-in animated radar, it will very likely
+affect any video pack too, on that same hardware — there's no way to detect
+or route around it from here, so it's worth knowing this exists as a real,
+if rare, ceiling on video packs generally.
+
 **Encoding.** This recipe produces something every Android TV device can play:
 
 ```bash

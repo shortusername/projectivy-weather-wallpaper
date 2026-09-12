@@ -50,6 +50,7 @@ Each of these can be toggled independently:
 | **Aurora watch** | A line when the K-index makes aurora plausible at your latitude |
 | **Compare to yesterday** | "4° cooler than yesterday" |
 | **Severe weather alerts** | Active US National Weather Service warnings, as a banner |
+| **Marine conditions** | Wave height and period, where there's a large enough body of water nearby (ocean or a Great Lake) |
 | **Clock** | Optional, with position, size, style and format options |
 
 Readout size is adjustable from 80% to 120% if the default is too small or too
@@ -141,8 +142,58 @@ They stay behind the toggle because on-device video encoding is meaningfully
 heavier than drawing a still image, and I'd rather that stay something you opt
 into than the default.
 
+**They may stop your screensaver from starting while active — confirmed, not
+hypothetical.** Video playback commonly signals the system to stay awake while
+it plays, which is normal and desirable for someone watching an actual video,
+and exactly the wrong behaviour for a background wallpaper loop. That signal
+comes from whatever plays the video back, not from this plugin, so it isn't
+something the plugin can control or override. If your screensaver matters to
+you, leave these off, or turn them off before you'd normally step away.
+
+This almost certainly applies to **any** video wallpaper, not just these two —
+including community video packs, which use the identical mechanism. Worth
+knowing before turning either on for a device where the screensaver matters.
+
 Animated wallpaper packs are no longer gated — they work, but like video packs
 they can't show the weather readout, since the launcher renders them itself.
+
+### Known failure on some budget hardware
+
+On at least one low-power projector, animated radar and animated rain/snow
+reliably go black a few seconds into playback, every time, on every fresh
+loop. A logcat capture traced this to the device's own hardware decoder
+(tag `OMX.MS.AVC.Decoder`, part of the MStar chipset family common in budget
+Android TV boxes and cheap projectors) refusing a routine output-buffer
+renegotiation:
+
+```
+D/MS_OMX_VDEC: Notify : OMX_EventPortSettingsChanged
+W/ACodec: setting nBufferCountActual to 11 failed: -22
+W/ACodec: setting nBufferCountActual to 10 failed: -22
+E/MM_CP_ERR_OMX_VIDEO_API: [MsVdecCloseLock] blackScreenInfo.bEnable = 1
+```
+
+That last line is the vendor's own driver deliberately blanking the screen
+after giving up — not a crash, an intentional response. Two different
+buffer counts were rejected with the identical error, which reads as a flat
+refusal of the renegotiation rather than a specific count being too high —
+the signature of a vendor firmware limitation, not something tunable from
+the encoder side. Several encoder settings were tried (H.264 profile,
+level, keyframe interval) without resolving it.
+
+If you hit a black screen that matches this pattern — plays a few seconds,
+blanks, repeats — grabbing a similar logcat is the fastest way to confirm
+whether you're looking at the same thing:
+
+```bash
+adb logcat -v time | grep -iE "MediaCodec|OMX|Codec2|WeatherWallpaper"
+```
+
+If you see the same `blackScreenInfo` or an identical buffer-count
+rejection, this plugin has no visibility into playback once it hands over
+the video URI, and no way to detect or work around a decoder failing on the
+launcher's side. The practical fix is to leave both animation options off
+on that specific device; everything else in the plugin is unaffected.
 
 ## Demo mode
 
