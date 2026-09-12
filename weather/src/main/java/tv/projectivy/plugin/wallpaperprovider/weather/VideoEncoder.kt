@@ -94,11 +94,67 @@ object VideoEncoder {
             val semiPlanar =
                 colorFormat != MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar
 
+            // Request Baseline profile when the device's own encoder actually
+            // offers it. We never set a profile at all before this, which
+            // left every device encoding at whatever profile its encoder
+            // defaults to — often Main or High, chosen for better
+            // compression. Some weaker or older hardware decoders only
+            // support Baseline, which creates a real, silent failure mode:
+            // the SAME device's encoder can produce a file its OWN decoder
+            // then can't play back, since encode and decode capability aren't
+            // guaranteed to match on cheaper hardware. Only requesting it when
+            // it's confirmed present avoids trading that failure for a
+            // different one on hardware that can't encode Baseline at all.
+            val profiles = codec.codecInfo.getCapabilitiesForType(MIME).profileLevels
+            val baselineSupported = profiles.any {
+                it.profile == MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+            }
+
+            // 1280x720 needs at least H.264 Level 3.1 to be spec-valid at all
+            // — 3600 macroblocks/frame is exactly that level's own documented
+            // ceiling, and the level below it (3.0) can't hold a 720p frame.
+            // Previously left unset entirely, meaning the encoder picked
+            // whatever level suited its OWN hardware — which is not
+            // guaranteed to match what a physically separate, weaker decoder
+            // chip on the same device can actually sustain. A real playback
+            // failure partway through a loop, always at the same frame, is
+            // consistent with exactly that kind of encode/decode capability
+            // mismatch. Only requested when confirmed present for the
+            // profile actually being used, so this can't cause a new
+            // configure() failure on a device that doesn't offer it.
+            val level31Available = baselineSupported && profiles.any {
+                it.profile == MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline &&
+                    it.level >= MediaCodecInfo.CodecProfileLevel.AVCLevel31
+            }
+
             val format = MediaFormat.createVideoFormat(MIME, WIDTH, HEIGHT).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
                 setInteger(MediaFormat.KEY_BIT_RATE, BITRATE)
                 setInteger(MediaFormat.KEY_FRAME_RATE, FPS)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, KEYFRAME_INTERVAL_S)
+
+                // No B-frames, unconditionally. B-frames reference both past
+                // and future frames, which costs more decoder-side reference
+                // buffer capacity than a simple I/P sequence — a plausible
+                // reason playback would degrade partway through a loop
+                // specifically on weaker hardware rather than failing
+                // immediately. This key is honoured broadly enough to set
+                // regardless of which profile ends up being used, unlike
+                // profile or level, which do need the defensive check above.
+                setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
+
+                if (baselineSupported) {
+                    setInteger(
+                        MediaFormat.KEY_PROFILE,
+                        MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
+                    )
+                    if (level31Available) {
+                        setInteger(
+                            MediaFormat.KEY_LEVEL,
+                            MediaCodecInfo.CodecProfileLevel.AVCLevel31
+                        )
+                    }
+                }
             }
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             codec.start()
