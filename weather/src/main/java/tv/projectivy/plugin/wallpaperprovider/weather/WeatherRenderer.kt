@@ -115,6 +115,9 @@ object WeatherRenderer {
     var currentAurora: AuroraClient.Conditions? = null
 
     @Volatile
+    var currentMarine: MarineClient.Conditions? = null
+
+    @Volatile
     var currentAir: AirQualityClient.Reading? = null
 
     private fun gradientFor(bucket: String, isDay: Boolean): Pair<Int, Int> = when {
@@ -565,6 +568,20 @@ object WeatherRenderer {
                         color = Color.parseColor("#A8E6A0")
                     })
                 }
+            }
+        }
+
+        // Wave height and period. Only ever non-null where there's actually
+        // large open water nearby, so this costs nothing everywhere else.
+        if (PreferencesManager.showMarine) {
+            currentMarine?.let { m ->
+                y += dy(46f)
+                canvas.drawText(
+                    MarineClient.label(m, c.metric), MARGIN, y,
+                    paint(sz(34f), medium, 220).apply {
+                        color = Color.parseColor("#8ECAE6")
+                    }
+                )
             }
         }
 

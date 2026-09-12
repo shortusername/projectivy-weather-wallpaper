@@ -49,6 +49,7 @@ object PreferencesManager {
     const val KEY_EXPERIMENTAL = "experimentalFeatures"
     const val KEY_NOWCAST = "showNowcast"
     const val KEY_AURORA = "showAurora"
+    const val KEY_MARINE = "showMarine"
     const val KEY_YESTERDAY = "showYesterday"
     const val KEY_SAFE_RADAR = "safeRadarPalette"
     const val KEY_AIR_QUALITY = "showAirQuality"
@@ -468,6 +469,16 @@ object PreferencesManager {
         get() = prefs.getBoolean(KEY_AURORA, false)
         set(v) = prefs.edit().putBoolean(KEY_AURORA, v).apply()
 
+    /**
+     * Wave height and period, only shown where the data actually exists — the
+     * API returns explicit null rather than a fabricated value for locations
+     * with no large body of water nearby, so this is off by default and only
+     * ever appears somewhere it's genuinely meaningful.
+     */
+    var showMarine: Boolean
+        get() = prefs.getBoolean(KEY_MARINE, false)
+        set(v) = prefs.edit().putBoolean(KEY_MARINE, v).apply()
+
     /** "4° cooler than yesterday". */
     var showYesterday: Boolean
         get() = prefs.getBoolean(KEY_YESTERDAY, false)
@@ -598,6 +609,7 @@ object PreferencesManager {
         put(KEY_EXPERIMENTAL, experimentalFeatures)
         put(KEY_NOWCAST, showNowcast)
         put(KEY_AURORA, showAurora)
+        put(KEY_MARINE, showMarine)
         put(KEY_YESTERDAY, showYesterday)
         put(KEY_SAFE_RADAR, safeRadarPalette)
         put(KEY_AIR_QUALITY, showAirQuality)
@@ -652,6 +664,7 @@ object PreferencesManager {
             }
             if (json.has(KEY_NOWCAST)) showNowcast = json.getBoolean(KEY_NOWCAST)
             if (json.has(KEY_AURORA)) showAurora = json.getBoolean(KEY_AURORA)
+            if (json.has(KEY_MARINE)) showMarine = json.getBoolean(KEY_MARINE)
             if (json.has(KEY_YESTERDAY)) showYesterday = json.getBoolean(KEY_YESTERDAY)
             if (json.has(KEY_SAFE_RADAR)) safeRadarPalette = json.getBoolean(KEY_SAFE_RADAR)
             if (json.has(KEY_AIR_QUALITY)) showAirQuality = json.getBoolean(KEY_AIR_QUALITY)

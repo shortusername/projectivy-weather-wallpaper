@@ -187,6 +187,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_DEMO_LABEL = 16L
         private const val ACTION_ID_BASEMAP = 17L
         private const val ACTION_ID_BASEMAP_ATTR = 18L
+        private const val ACTION_ID_MARINE = 50L
 
         /**
          * Sub-action id ranges, each 1000 wide.
@@ -222,7 +223,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
         ACTION_ID_HOURLY, ACTION_ID_DAILY, ACTION_ID_STATS, ACTION_ID_SUN, ACTION_ID_ALERTS,
         ACTION_ID_WORLD, ACTION_ID_NOWCAST, ACTION_ID_AURORA, ACTION_ID_YESTERDAY,
-        ACTION_ID_AIR, ACTION_ID_ADVISORIES -> CAT_WEATHER
+        ACTION_ID_AIR, ACTION_ID_ADVISORIES, ACTION_ID_MARINE -> CAT_WEATHER
 
         ACTION_ID_CLOCK, ACTION_ID_CLOCK_DATE, ACTION_ID_CLOCK_POSITION,
         ACTION_ID_CLOCK_SIZE, ACTION_ID_CLOCK_STYLE, ACTION_ID_CLOCK_HOURS -> CAT_CLOCK
@@ -534,6 +535,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
             R.string.setting_air_desc, PreferencesManager.showAirQuality))
         allActions.add(checkbox(ACTION_ID_AURORA, R.string.setting_aurora_title,
             R.string.setting_aurora_desc, PreferencesManager.showAurora))
+        allActions.add(checkbox(ACTION_ID_MARINE, R.string.setting_marine_title,
+            R.string.setting_marine_desc, PreferencesManager.showMarine))
         allActions.add(checkbox(ACTION_ID_SAFE_RADAR, R.string.setting_safe_radar_title,
             R.string.setting_safe_radar_desc, PreferencesManager.safeRadarPalette))
 
@@ -1081,6 +1084,10 @@ class SettingsFragment : GuidedStepSupportFragment() {
             }
             ACTION_ID_AURORA -> {
                 PreferencesManager.showAurora = action.isChecked
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_MARINE -> {
+                PreferencesManager.showMarine = action.isChecked
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
             ACTION_ID_SAFE_RADAR -> {

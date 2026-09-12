@@ -59,6 +59,8 @@
     <string name="setting_yesterday_desc">Adds how much warmer or cooler today is</string>
     <string name="setting_air_title">Air quality and pollen</string>
     <string name="setting_air_desc">Adds AQI to the stats line, and a warning when air quality is poor. Pollen where available.</string>
+    <string name="setting_marine_title">Marine conditions</string>
+    <string name="setting_marine_desc">Wave height and period, where there\'s a large enough body of water nearby \u2014 ocean or a Great Lake</string>
     <string name="setting_aurora_title">Aurora watch</string>
     <string name="setting_aurora_desc">A line when the K-index makes aurora plausible at your latitude</string>
     <string name="setting_safe_radar_title">Colour-blind friendly radar</string>

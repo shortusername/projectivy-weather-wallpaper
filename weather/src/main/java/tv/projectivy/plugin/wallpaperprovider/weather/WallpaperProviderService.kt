@@ -22,6 +22,8 @@ class WallpaperProviderService : Service() {
         private const val ALERT_INTERVAL_MS = 5 * 60 * 1000L
         /** Kp updates every few hours; half an hour is ample. */
         private const val AURORA_INTERVAL_MS = 30 * 60 * 1000L
+        // Waves move slowly compared to weather; half an hour is plenty.
+        private const val MARINE_INTERVAL_MS = 30 * 60 * 1000L
         /** Air quality moves slowly; hourly is plenty. */
         private const val AIR_INTERVAL_MS = 60 * 60 * 1000L
         /** Frames in an animated radar loop. Seven spans ~2h of observations. */
@@ -54,6 +56,8 @@ class WallpaperProviderService : Service() {
     private var cachedAir: AirQualityClient.Reading? = null
     private var lastAuroraAt = 0L
     private var cachedAurora: AuroraClient.Conditions? = null
+    private var lastMarineAt = 0L
+    private var cachedMarine: MarineClient.Conditions? = null
     private var yesterdayHigh: Double? = null
     private var yesterdayFetchedForDay = -1
     private var lastWorldAt = 0L
@@ -177,6 +181,7 @@ class WallpaperProviderService : Service() {
             // before either.
             WeatherRenderer.currentAlert = currentAlert()
             WeatherRenderer.currentAurora = currentAurora()
+            WeatherRenderer.currentMarine = currentMarine()
             WeatherRenderer.currentAir = currentAir()
 
             return try {
@@ -341,6 +346,7 @@ class WallpaperProviderService : Service() {
             PreferencesManager.showStats, PreferencesManager.showSun,
             PreferencesManager.showNowcast, PreferencesManager.showAdvisories,
             PreferencesManager.showAirQuality, PreferencesManager.showAurora,
+            PreferencesManager.showMarine,
             PreferencesManager.showYesterday, PreferencesManager.showClock,
             PreferencesManager.clockPosition, PreferencesManager.clockSize,
             PreferencesManager.clockStyle, PreferencesManager.clockHours,
@@ -350,6 +356,7 @@ class WallpaperProviderService : Service() {
             PreferencesManager.safeRadarPalette, PreferencesManager.radarZoom,
             WeatherRenderer.currentAlert?.event,
             WeatherRenderer.currentAurora?.kp,
+            WeatherRenderer.currentMarine?.waveHeightM,
             WeatherRenderer.currentAir?.aqi,
             Advisories.top(c)?.text,
             UpdateChecker.pendingVersion(BuildConfig.VERSION_NAME),
@@ -784,6 +791,19 @@ class WallpaperProviderService : Service() {
             lastAuroraAt = now
         }
         return cachedAurora
+    }
+
+    /** Wave conditions, refreshed on its own slower cadence. */
+    private fun currentMarine(): MarineClient.Conditions? {
+        if (!PreferencesManager.showMarine) return null
+        val now = System.currentTimeMillis()
+        if (now - lastMarineAt > MARINE_INTERVAL_MS) {
+            cachedMarine = MarineClient.fetch(
+                PreferencesManager.currentLatitude, PreferencesManager.currentLongitude
+            )
+            lastMarineAt = now
+        }
+        return cachedMarine
     }
 
     /**
