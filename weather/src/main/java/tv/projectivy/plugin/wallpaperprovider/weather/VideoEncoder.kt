@@ -42,7 +42,21 @@ object VideoEncoder {
 
     private const val FPS = 8
     private const val BITRATE = 3_000_000
-    private const val KEYFRAME_INTERVAL_S = 1
+    // Deliberately longer than any loop we ever produce (radar's worst case
+    // is ~4.9s), so the whole clip is a single GOP with one keyframe at the
+    // very start — one SPS emission, not one per second.
+    //
+    // A real device log caught the actual failure this was chosen to prevent:
+    // a specific vendor decoder (OMX.MS.AVC.Decoder, an embedded/budget SoC)
+    // hit OMX_EventPortSettingsChanged partway through playback, failed to
+    // renegotiate its output buffer count for either of the two counts
+    // offered, spent several seconds trying to recover, and then explicitly
+    // set its own internal "blackScreenInfo.bEnable" flag and gave up —
+    // deliberate, not a crash. A repeated SPS at every keyframe, once a
+    // second, is the most plausible trigger for that renegotiation event on a
+    // stream that never changes resolution or any other decode-relevant
+    // property. Removing the repetition removes the trigger.
+    private const val KEYFRAME_INTERVAL_S = 10
     private const val TIMEOUT_US = 10_000L
 
     /**
