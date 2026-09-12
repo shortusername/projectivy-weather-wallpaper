@@ -4,8 +4,8 @@ appId = "tv.projectivy.plugin.wallpaperprovider.weather"
 compileSdk = "37"
 minSdk = "23"
 targetSdk = "37"
-versionCode = "26"
-versionName = "2.6.2"
+versionCode = "27"
+versionName = "2.6.3"
 
 # Kotlin
 kotlin = "2.3.21"  # https://github.com/JetBrains/kotlin/releases
