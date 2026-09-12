@@ -124,23 +124,18 @@ object VideoEncoder {
                 it.profile == MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
             }
 
-            // 1280x720 needs at least H.264 Level 3.1 to be spec-valid at all
-            // — 3600 macroblocks/frame is exactly that level's own documented
-            // ceiling, and the level below it (3.0) can't hold a 720p frame.
-            // Previously left unset entirely, meaning the encoder picked
-            // whatever level suited its OWN hardware — which is not
-            // guaranteed to match what a physically separate, weaker decoder
-            // chip on the same device can actually sustain. A real playback
-            // failure partway through a loop, always at the same frame, is
-            // consistent with exactly that kind of encode/decode capability
-            // mismatch. Only requested when confirmed present for the
-            // profile actually being used, so this can't cause a new
-            // configure() failure on a device that doesn't offer it.
-            val level31Available = baselineSupported && profiles.any {
-                it.profile == MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline &&
-                    it.level >= MediaCodecInfo.CodecProfileLevel.AVCLevel31
-            }
-
+            // Level is deliberately NOT requested, reversing the previous
+            // attempt. A real device log showed the actual failure: a decoder
+            // rejecting an output-buffer-count renegotiation outright — the
+            // same BadParameter error for two different counts offered, which
+            // reads as a flat refusal rather than "this specific count is too
+            // high." Level is exactly what governs how much buffer capacity a
+            // decoder must support (via the H.264 MaxDpbMbs table), so explicitly
+            // requesting Level 3.1 is a real candidate for having caused or
+            // worsened this, not fixed it — the failure shifted by one frame
+            // after that request was added, not away. Left unset, as it was
+            // before that attempt, so the encoder picks whatever its own
+            // hardware defaults to.
             val format = MediaFormat.createVideoFormat(MIME, WIDTH, HEIGHT).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
                 setInteger(MediaFormat.KEY_BIT_RATE, BITRATE)
@@ -162,12 +157,6 @@ object VideoEncoder {
                         MediaFormat.KEY_PROFILE,
                         MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
                     )
-                    if (level31Available) {
-                        setInteger(
-                            MediaFormat.KEY_LEVEL,
-                            MediaCodecInfo.CodecProfileLevel.AVCLevel31
-                        )
-                    }
                 }
             }
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
