@@ -42,21 +42,7 @@ object VideoEncoder {
 
     private const val FPS = 8
     private const val BITRATE = 3_000_000
-    // Deliberately longer than any loop we ever produce (radar's worst case
-    // is ~4.9s), so the whole clip is a single GOP with one keyframe at the
-    // very start — one SPS emission, not one per second.
-    //
-    // A real device log caught the actual failure this was chosen to prevent:
-    // a specific vendor decoder (OMX.MS.AVC.Decoder, an embedded/budget SoC)
-    // hit OMX_EventPortSettingsChanged partway through playback, failed to
-    // renegotiate its output buffer count for either of the two counts
-    // offered, spent several seconds trying to recover, and then explicitly
-    // set its own internal "blackScreenInfo.bEnable" flag and gave up —
-    // deliberate, not a crash. A repeated SPS at every keyframe, once a
-    // second, is the most plausible trigger for that renegotiation event on a
-    // stream that never changes resolution or any other decode-relevant
-    // property. Removing the repetition removes the trigger.
-    private const val KEYFRAME_INTERVAL_S = 10
+    private const val KEYFRAME_INTERVAL_S = 1
     private const val TIMEOUT_US = 10_000L
 
     /**
@@ -108,56 +94,26 @@ object VideoEncoder {
             val semiPlanar =
                 colorFormat != MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar
 
-            // Request Baseline profile when the device's own encoder actually
-            // offers it. We never set a profile at all before this, which
-            // left every device encoding at whatever profile its encoder
-            // defaults to — often Main or High, chosen for better
-            // compression. Some weaker or older hardware decoders only
-            // support Baseline, which creates a real, silent failure mode:
-            // the SAME device's encoder can produce a file its OWN decoder
-            // then can't play back, since encode and decode capability aren't
-            // guaranteed to match on cheaper hardware. Only requesting it when
-            // it's confirmed present avoids trading that failure for a
-            // different one on hardware that can't encode Baseline at all.
-            val profiles = codec.codecInfo.getCapabilitiesForType(MIME).profileLevels
-            val baselineSupported = profiles.any {
-                it.profile == MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
-            }
-
-            // Level is deliberately NOT requested, reversing the previous
-            // attempt. A real device log showed the actual failure: a decoder
-            // rejecting an output-buffer-count renegotiation outright — the
-            // same BadParameter error for two different counts offered, which
-            // reads as a flat refusal rather than "this specific count is too
-            // high." Level is exactly what governs how much buffer capacity a
-            // decoder must support (via the H.264 MaxDpbMbs table), so explicitly
-            // requesting Level 3.1 is a real candidate for having caused or
-            // worsened this, not fixed it — the failure shifted by one frame
-            // after that request was added, not away. Left unset, as it was
-            // before that attempt, so the encoder picks whatever its own
-            // hardware defaults to.
+            // Profile, level and B-frame count are deliberately left unset,
+            // reverting three attempts at fixing playback on one specific
+            // budget projector (2.6.1 requested Baseline profile + Level 3.1
+            // and disabled B-frames; 2.6.2 widened the keyframe interval;
+            // 2.6.3 dropped the level request but kept the rest). None of
+            // that resolved the projector's failure — a real device log
+            // showed its decoder rejecting an output-buffer renegotiation
+            // with the identical error for two different counts offered,
+            // which reads as a vendor firmware limitation rather than
+            // something fixable by tuning encoder parameters — and the
+            // cumulative changes broke playback on the Nvidia Shield, which
+            // had worked reliably on every prior version. That's a worse
+            // trade than leaving one already-likely-unfixable device without
+            // animation. Back to letting the encoder pick its own defaults
+            // entirely, as it did when the Shield was last known solid.
             val format = MediaFormat.createVideoFormat(MIME, WIDTH, HEIGHT).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
                 setInteger(MediaFormat.KEY_BIT_RATE, BITRATE)
                 setInteger(MediaFormat.KEY_FRAME_RATE, FPS)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, KEYFRAME_INTERVAL_S)
-
-                // No B-frames, unconditionally. B-frames reference both past
-                // and future frames, which costs more decoder-side reference
-                // buffer capacity than a simple I/P sequence — a plausible
-                // reason playback would degrade partway through a loop
-                // specifically on weaker hardware rather than failing
-                // immediately. This key is honoured broadly enough to set
-                // regardless of which profile ends up being used, unlike
-                // profile or level, which do need the defensive check above.
-                setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0)
-
-                if (baselineSupported) {
-                    setInteger(
-                        MediaFormat.KEY_PROFILE,
-                        MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
-                    )
-                }
             }
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
             codec.start()
