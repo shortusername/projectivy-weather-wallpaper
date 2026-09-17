@@ -61,6 +61,8 @@
     <string name="setting_air_desc">Adds AQI to the stats line, and a warning when air quality is poor. Pollen where available.</string>
     <string name="setting_marine_title">Marine conditions</string>
     <string name="setting_marine_desc">Wave height and period, where there\'s a large enough body of water nearby \u2014 ocean or a Great Lake</string>
+    <string name="setting_last_updated_title">Show last updated time</string>
+    <string name="setting_last_updated_desc">A small \"Updated H:MM\" line showing when the picture on screen was actually rendered, in the location\'s own time</string>
     <string name="setting_aurora_title">Aurora watch</string>
     <string name="setting_aurora_desc">A line when the K-index makes aurora plausible at your latitude</string>
     <string name="setting_safe_radar_title">Colour-blind friendly radar</string>
@@ -69,13 +71,13 @@
     <string name="setting_alerts_title">Severe weather alerts</string>
     <string name="setting_alerts_desc">Banner for active NWS warnings (US only)</string>
     <string name="setting_experimental_title">Experimental features</string>
-    <string name="setting_experimental_desc">Reveal animation options. These now encode a short video rather than using Lottie, which didn\'t work. Still unproven \u2014 everything falls back to a still wallpaper.</string>
+    <string name="setting_experimental_desc">Reveal animation options. These encode a short video, which may prevent your screensaver from starting while active \u2014 that\'s confirmed on at least one device. Everything falls back to a still wallpaper if it fails.</string>
 
 
     <string name="setting_precip_title">Animate rain and snow</string>
-    <string name="setting_precip_desc">Falling rain or snow over the background when it\'s wet out. Encodes a short video.</string>
+    <string name="setting_precip_desc">Falling rain or snow over the background when it\'s wet out. Encodes a short video \u2014 may stop your screensaver starting while this is showing.</string>
     <string name="setting_animate_title">Animate radar</string>
-    <string name="setting_animate_desc">Loops the last two hours of precipitation. Encodes a short video, so it takes a few seconds to build.</string>
+    <string name="setting_animate_desc">Loops the last two hours of precipitation. Encodes a short video, so it takes a few seconds to build \u2014 may stop your screensaver starting while this is showing.</string>
     <string name="toast_animate_needs_radar">Set the background to Live radar to see this</string>
 
     <string name="setting_hourly_title">Show hourly forecast</string>

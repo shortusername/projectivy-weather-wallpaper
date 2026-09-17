@@ -638,6 +638,25 @@ object WeatherRenderer {
             canvas.drawText(it, MARGIN, H - 46f, paint(26f, light, 130))
         }
 
+        // "Updated H:MM" at the mirrored bottom-right corner, in the
+        // location's own local time — not the device's, matching the fix
+        // already applied to day/night phase, advisories, and the yesterday
+        // comparison. Whatever caused a refresh to be skipped, this makes
+        // the staleness visible on the wallpaper itself instead of only ever
+        // showing up as a wrong-looking clock.
+        if (PreferencesManager.showLastUpdated) {
+            val now = OpenMeteoClient.locationNow(c.utcOffsetSeconds)
+            val is24 = context?.let { use24Hour(it) } ?: false
+            val hour = if (is24) now.get(java.util.Calendar.HOUR_OF_DAY)
+            else now.get(java.util.Calendar.HOUR).let { if (it == 0) 12 else it }
+            val minute = now.get(java.util.Calendar.MINUTE)
+            val suffix = if (is24) "" else
+                if (now.get(java.util.Calendar.AM_PM) == java.util.Calendar.AM) " AM" else " PM"
+            val label = "Updated %d:%02d%s".format(hour, minute, suffix)
+            val p2 = paint(26f, light, 130)
+            canvas.drawText(label, W - MARGIN - p2.measureText(label), H - 46f, p2)
+        }
+
         canvas.restore()
     }
 

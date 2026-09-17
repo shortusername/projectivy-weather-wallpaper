@@ -50,6 +50,7 @@ object PreferencesManager {
     const val KEY_NOWCAST = "showNowcast"
     const val KEY_AURORA = "showAurora"
     const val KEY_MARINE = "showMarine"
+    const val KEY_LAST_UPDATED = "showLastUpdated"
     const val KEY_YESTERDAY = "showYesterday"
     const val KEY_SAFE_RADAR = "safeRadarPalette"
     const val KEY_AIR_QUALITY = "showAirQuality"
@@ -479,6 +480,18 @@ object PreferencesManager {
         get() = prefs.getBoolean(KEY_MARINE, false)
         set(v) = prefs.edit().putBoolean(KEY_MARINE, v).apply()
 
+    /**
+     * A small "Updated H:MM" line showing when the currently-displayed
+     * picture was actually rendered — using the displayed location's own
+     * clock, not the device's, same as day/night phase and advisories. On by
+     * default: it's the cheapest possible way for staleness of any kind —
+     * a stuck refresh, a network outage, the plugin simply not being asked
+     * to redraw — to be visible rather than silently misleading.
+     */
+    var showLastUpdated: Boolean
+        get() = prefs.getBoolean(KEY_LAST_UPDATED, true)
+        set(v) = prefs.edit().putBoolean(KEY_LAST_UPDATED, v).apply()
+
     /** "4° cooler than yesterday". */
     var showYesterday: Boolean
         get() = prefs.getBoolean(KEY_YESTERDAY, false)
@@ -610,6 +623,7 @@ object PreferencesManager {
         put(KEY_NOWCAST, showNowcast)
         put(KEY_AURORA, showAurora)
         put(KEY_MARINE, showMarine)
+        put(KEY_LAST_UPDATED, showLastUpdated)
         put(KEY_YESTERDAY, showYesterday)
         put(KEY_SAFE_RADAR, safeRadarPalette)
         put(KEY_AIR_QUALITY, showAirQuality)
@@ -665,6 +679,7 @@ object PreferencesManager {
             if (json.has(KEY_NOWCAST)) showNowcast = json.getBoolean(KEY_NOWCAST)
             if (json.has(KEY_AURORA)) showAurora = json.getBoolean(KEY_AURORA)
             if (json.has(KEY_MARINE)) showMarine = json.getBoolean(KEY_MARINE)
+            if (json.has(KEY_LAST_UPDATED)) showLastUpdated = json.getBoolean(KEY_LAST_UPDATED)
             if (json.has(KEY_YESTERDAY)) showYesterday = json.getBoolean(KEY_YESTERDAY)
             if (json.has(KEY_SAFE_RADAR)) safeRadarPalette = json.getBoolean(KEY_SAFE_RADAR)
             if (json.has(KEY_AIR_QUALITY)) showAirQuality = json.getBoolean(KEY_AIR_QUALITY)

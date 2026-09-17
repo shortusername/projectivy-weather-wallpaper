@@ -149,9 +149,26 @@ class WallpaperProviderService : Service() {
 
                 // Return immediately when going idle, with no render and no
                 // network. The launcher is about to hand over to a screensaver
-                // and blocking this binder call could delay or prevent that.
-                // The layout change takes effect on the next ordinary refresh.
+                // (or another app has taken focus) and blocking this binder
+                // call could delay or prevent that. The layout change takes
+                // effect on the next ordinary refresh.
                 if (event.isIdle) return emptyList()
+
+                // Coming back — e.g. exiting another app back to the home
+                // screen. Falling through below already computes and returns
+                // a fresh render for *this* call, but that's only reliably
+                // applied if the launcher treats an idle-triggered response
+                // the same way it treats a TIME_ELAPSED one, which isn't
+                // something this plugin can confirm. requestSelfUpdate() is
+                // the mechanism already proven to work — it's the same
+                // broadcast the once-a-minute clock ticker relies on — so
+                // it's used here too rather than depending on an unverified
+                // assumption about how this specific call's result is
+                // handled. Without this, a long stretch in another app could
+                // leave the wallpaper showing whatever was last rendered
+                // before it went idle, clock included, until the next
+                // regularly scheduled refresh happened to come around.
+                requestSelfUpdate()
             }
 
             if (event !is Event.TimeElapsed && event !is Event.LauncherIdleModeChanged) {
