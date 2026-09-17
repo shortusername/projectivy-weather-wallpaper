@@ -77,6 +77,14 @@ class WallpaperProviderService : Service() {
     private val clockHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val clockTick = object : Runnable {
         override fun run() {
+            // TEMPORARY diagnostic — remove once the clock-drift cause is
+            // confirmed. Tag deliberately distinct from anything else so a
+            // logcat capture filtered on "ClockDiag" shows only this.
+            Log.i("ClockDiag", "tick fired @ ${System.currentTimeMillis()}, " +
+                "showClock=${PreferencesManager.showClock}, " +
+                "idle=${PreferencesManager.launcherIdle}, " +
+                "instance=${System.identityHashCode(this@WallpaperProviderService)}")
+
             if (!PreferencesManager.showClock) return
 
             // Don't poke the launcher while it's idle. Each self-update makes
@@ -90,6 +98,7 @@ class WallpaperProviderService : Service() {
             }
 
             requestSelfUpdate()
+            Log.i("ClockDiag", "self-update sent @ ${System.currentTimeMillis()}")
             scheduleNextTick()
         }
     }
@@ -97,10 +106,20 @@ class WallpaperProviderService : Service() {
     override fun onCreate() {
         super.onCreate()
         PreferencesManager.init(this)
+        // TEMPORARY diagnostic.
+        Log.i("ClockDiag", "onCreate @ ${System.currentTimeMillis()}, " +
+            "instance=${System.identityHashCode(this)}")
         if (PreferencesManager.showClock) scheduleNextTick()
     }
 
     override fun onDestroy() {
+        // TEMPORARY diagnostic — this is the one that actually tests the
+        // theory: if this fires shortly after every tick, the service is
+        // being torn down between ticks, which would explain one successful
+        // update followed by silence far better than a bug in the tick logic
+        // itself would.
+        Log.i("ClockDiag", "onDestroy @ ${System.currentTimeMillis()}, " +
+            "instance=${System.identityHashCode(this)}")
         clockHandler.removeCallbacks(clockTick)
         Backgrounds.clearBackgroundCache()
         super.onDestroy()
