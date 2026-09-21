@@ -289,6 +289,8 @@ behaves on a Fire Stick, a Chromecast, or anything else. Build from source if
 you'd rather not trust a debug-signed APK from a stranger. Issues are welcome and
 I'll do what I can, no promises on turnaround.
 
+If this has been useful to you, there's a **Support this project** entry under Housekeeping in the plugin's own settings.
+
 ## Credits and licence
 
 Built on [spocky's wallpaper provider template][template] (Apache 2.0), for
@@ -301,9 +303,12 @@ from [GeoNames][geonames] (CC BY), severe weather alerts and the K-index from
 [NOAA](https://www.weather.gov/), world events from
 [GDACS](https://www.gdacs.org/), optional stock photos via
 [Unsplash](https://unsplash.com/). All credited on screen when in use. Any custom
-basemap you configure is yours to source and credit.
+basemap you configure is yours to source and credit. QR code generation via
+[ZXing](https://github.com/zxing/zxing) (Apache 2.0).
 
 Licensed under Apache 2.0. See [LICENSE](LICENSE).
+
+If you'd like to support the project directly: [ko-fi.com/shortusername](https://ko-fi.com/shortusername).
 
 [releases]: ../../releases
 [template]: https://github.com/spocky/projectivy-plugin-wallpaper-provider
