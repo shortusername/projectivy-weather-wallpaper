@@ -308,7 +308,11 @@ basemap you configure is yours to source and credit. QR code generation via
 
 Licensed under Apache 2.0. See [LICENSE](LICENSE).
 
-If you'd like to support the project directly: [ko-fi.com/shortusername](https://ko-fi.com/shortusername).
+## Support this project
+
+If you enjoy using this, consider supporting it on Ko-fi.
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/shortusername)
 
 [releases]: ../../releases
 [template]: https://github.com/spocky/projectivy-plugin-wallpaper-provider
