@@ -3,6 +3,10 @@
 You don't need to write any code. A pack is a set of images (or animations) plus
 one entry in `packs/index.json`. Open a pull request and CI checks the rest.
 
+> **Looking to translate the plugin instead of contributing a wallpaper
+> pack?** See [TRANSLATING.md](TRANSLATING.md) — different guide, same
+> PR-and-review shape.
+
 ## How packs work
 
 The plugin downloads `packs/index.json`, the user picks a pack in settings, and

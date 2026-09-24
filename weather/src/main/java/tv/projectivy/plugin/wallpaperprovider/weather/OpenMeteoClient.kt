@@ -1,5 +1,6 @@
 package tv.projectivy.plugin.wallpaperprovider.weather
 
+import android.content.Context
 import android.util.Log
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -414,8 +415,39 @@ object OpenMeteoClient {
         return points[(((degrees % 360) + 360) % 360 * 16 / 360) % 16]
     }
 
-    /** WMO weather interpretation codes -> short human label. */
-    fun describe(code: Int): String = when (code) {
+    /**
+     * WMO weather interpretation codes -> short human label.
+     *
+     * context is nullable, not because it's ever actually missing in
+     * practice, but so a caller that somehow lacks one degrades to English
+     * rather than crashing — matching this codebase's general "never crash,
+     * degrade gracefully" approach elsewhere (a near-new moon still shows a
+     * faint disc rather than nothing, a failed satellite fetch falls back to
+     * the previous background, and so on).
+     */
+    fun describe(context: Context?, code: Int): String {
+        if (context == null) return describeFallback(code)
+        return when (code) {
+            0 -> context.getString(R.string.wx_clear)
+            1 -> context.getString(R.string.wx_mainly_clear)
+            2 -> context.getString(R.string.wx_partly_cloudy)
+            3 -> context.getString(R.string.wx_overcast)
+            45, 48 -> context.getString(R.string.wx_fog)
+            51, 53, 55 -> context.getString(R.string.wx_drizzle)
+            56, 57 -> context.getString(R.string.wx_freezing_drizzle)
+            61, 63, 65 -> context.getString(R.string.wx_rain)
+            66, 67 -> context.getString(R.string.wx_freezing_rain)
+            71, 73, 75 -> context.getString(R.string.wx_snow)
+            77 -> context.getString(R.string.wx_snow_grains)
+            80, 81, 82 -> context.getString(R.string.wx_rain_showers)
+            85, 86 -> context.getString(R.string.wx_snow_showers)
+            95 -> context.getString(R.string.wx_thunderstorm)
+            96, 99 -> context.getString(R.string.wx_thunderstorm_hail)
+            else -> "\u2014"
+        }
+    }
+
+    private fun describeFallback(code: Int): String = when (code) {
         0 -> "Clear"
         1 -> "Mainly clear"
         2 -> "Partly cloudy"

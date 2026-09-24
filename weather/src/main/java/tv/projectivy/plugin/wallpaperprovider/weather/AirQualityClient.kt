@@ -1,5 +1,6 @@
 package tv.projectivy.plugin.wallpaperprovider.weather
 
+import android.content.Context
 import android.util.Log
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -84,13 +85,13 @@ object AirQualityClient {
     }
 
     /** Standard US AQI band names. */
-    fun bandName(aqi: Int): String = when {
-        aqi <= 50 -> "Good"
-        aqi <= 100 -> "Moderate"
-        aqi <= 150 -> "Unhealthy for sensitive groups"
-        aqi <= 200 -> "Unhealthy"
-        aqi <= 300 -> "Very unhealthy"
-        else -> "Hazardous"
+    fun bandName(context: Context?, aqi: Int): String = when {
+        aqi <= 50 -> res(context, R.string.aqi_good, "Good")
+        aqi <= 100 -> res(context, R.string.aqi_moderate, "Moderate")
+        aqi <= 150 -> res(context, R.string.aqi_unhealthy_sensitive, "Unhealthy for sensitive groups")
+        aqi <= 200 -> res(context, R.string.aqi_unhealthy, "Unhealthy")
+        aqi <= 300 -> res(context, R.string.aqi_very_unhealthy, "Very unhealthy")
+        else -> res(context, R.string.aqi_hazardous, "Hazardous")
     }
 
     fun bandColour(aqi: Int): Int = when {
@@ -102,7 +103,8 @@ object AirQualityClient {
         else -> 0xFFC06868.toInt()
     }
 
-    /** Compact form for the stats line: "AQI 53". */
+    /** Compact form for the stats line: "AQI 53". AQI kept as-is — an */
+    /** internationally recognised abbreviation, same call as km/h elsewhere. */
     fun shortLabel(r: Reading): String = "AQI ${r.aqi}"
 
     /**
@@ -110,9 +112,14 @@ object AirQualityClient {
      *
      * A daily "Good 53" is noise; "Unhealthy 162" is worth interrupting for.
      */
-    fun alertLabel(r: Reading): String? =
-        if (r.notable) "Air quality ${bandName(r.aqi).lowercase()} \u00B7 AQI ${r.aqi}"
-        else null
+    fun alertLabel(context: Context?, r: Reading): String? =
+        if (r.notable) {
+            res(
+                context, R.string.aqi_alert_line,
+                "Air quality %1\$s \u00B7 AQI %2\$d",
+                bandName(context, r.aqi).lowercase(), r.aqi
+            )
+        } else null
 
     /**
      * Pollen band from grains per cubic metre.
@@ -121,14 +128,35 @@ object AirQualityClient {
      * bands rather than anything authoritative, which is why the label says
      * "high" instead of quoting a number.
      */
-    fun pollenLabel(r: Reading): String? {
+    fun pollenLabel(context: Context?, r: Reading): String? {
         val (name, value) = r.topPollen ?: return null
-        val band = when {
-            value >= 200 -> "very high"
-            value >= 50 -> "high"
-            value >= 10 -> "moderate"
+        val bandRes = when {
+            value >= 200 -> R.string.pollen_very_high
+            value >= 50 -> R.string.pollen_high
+            value >= 10 -> R.string.pollen_moderate
             else -> return null   // low pollen isn't worth a line
         }
-        return "$name pollen $band"
+        val translatedName = pollenSpeciesName(context, name)
+        val band = res(context, bandRes, when (bandRes) {
+            R.string.pollen_very_high -> "very high"
+            R.string.pollen_high -> "high"
+            else -> "moderate"
+        })
+        return res(context, R.string.pollen_line, "%1\$s pollen %2\$s", translatedName, band)
     }
+
+    /** English species keys from fetch() -> translatable display names. */
+    private fun pollenSpeciesName(context: Context?, key: String): String = when (key) {
+        "Alder" -> res(context, R.string.pollen_alder, "Alder")
+        "Birch" -> res(context, R.string.pollen_birch, "Birch")
+        "Grass" -> res(context, R.string.pollen_grass, "Grass")
+        "Mugwort" -> res(context, R.string.pollen_mugwort, "Mugwort")
+        "Olive" -> res(context, R.string.pollen_olive, "Olive")
+        "Ragweed" -> res(context, R.string.pollen_ragweed, "Ragweed")
+        else -> key
+    }
+
+    private fun res(context: Context?, resId: Int, fallback: String, vararg args: Any): String =
+        if (context != null) context.getString(resId, *args)
+        else if (args.isEmpty()) fallback else fallback.format(*args)
 }

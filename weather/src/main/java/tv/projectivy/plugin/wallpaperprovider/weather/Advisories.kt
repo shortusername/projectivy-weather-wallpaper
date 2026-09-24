@@ -1,5 +1,6 @@
 package tv.projectivy.plugin.wallpaperprovider.weather
 
+import android.content.Context
 import android.graphics.Color
 
 /**
@@ -36,7 +37,7 @@ object Advisories {
      * ordering decision here, where the thresholds live, rather than in the
      * drawing code.
      */
-    fun forConditions(c: OpenMeteoClient.Conditions): List<Advisory> {
+    fun forConditions(context: Context?, c: OpenMeteoClient.Conditions): List<Advisory> {
         val out = mutableListOf<Advisory>()
 
         val tempC = toCelsius(c.temperature, c.metric)
@@ -57,42 +58,42 @@ object Advisories {
 
         val freezingCode = c.weatherCode in setOf(56, 57, 66, 67)
         if (freezingCode || (!tempC.isNaN() && tempC in -2.0..2.0 && maxChance >= 50)) {
-            out.add(Advisory(Kind.SAFETY, "Ice possible \u2014 take care on the roads"))
+            out.add(Advisory(Kind.SAFETY, text(context, R.string.adv_ice, "Ice possible \u2014 take care on the roads")))
         }
 
         // Only from mid-afternoon: "tonight" is meaningless at breakfast.
         if (overnightLowC != null && !overnightLowC.isNaN() && hour >= 15) {
             when {
-                overnightLowC <= 0.0 -> out.add(Advisory(Kind.SAFETY, "Hard freeze tonight"))
-                overnightLowC <= 2.0 -> out.add(Advisory(Kind.SAFETY, "Frost likely tonight"))
+                overnightLowC <= 0.0 -> out.add(Advisory(Kind.SAFETY, text(context, R.string.adv_hard_freeze, "Hard freeze tonight")))
+                overnightLowC <= 2.0 -> out.add(Advisory(Kind.SAFETY, text(context, R.string.adv_frost, "Frost likely tonight")))
             }
         }
 
         if (!c.uvIndexMax.isNaN()) {
             when {
                 c.uvIndexMax >= 8 -> out.add(
-                    Advisory(Kind.SAFETY, "Very high UV today \u00B7 index ${round(c.uvIndexMax)}")
+                    Advisory(Kind.SAFETY, text(context, R.string.adv_uv_very_high, "Very high UV today \u00B7 index %1$d", round(c.uvIndexMax)))
                 )
                 // Pointless to warn about UV once the sun is going down.
                 c.uvIndexMax >= 6 && hour < 16 -> out.add(
-                    Advisory(Kind.INFO, "High UV today \u00B7 index ${round(c.uvIndexMax)}")
+                    Advisory(Kind.INFO, text(context, R.string.adv_uv_high, "High UV today \u00B7 index %1$d", round(c.uvIndexMax)))
                 )
             }
         }
 
         when {
             windKmh >= 50 -> out.add(
-                Advisory(Kind.SAFETY, "Very windy \u00B7 ${windSpeedLabel(c)}")
+                Advisory(Kind.SAFETY, text(context, R.string.adv_very_windy, "Very windy \u00B7 %1$s", windSpeedLabel(c)))
             )
-            windKmh >= 35 -> out.add(Advisory(Kind.INFO, "Windy today"))
+            windKmh >= 35 -> out.add(Advisory(Kind.INFO, text(context, R.string.adv_windy, "Windy today")))
         }
 
         when {
             apparentC >= 34 -> out.add(
-                Advisory(Kind.SAFETY, "Feels oppressive \u2014 stay hydrated")
+                Advisory(Kind.SAFETY, text(context, R.string.adv_oppressive, "Feels oppressive \u2014 stay hydrated"))
             )
             apparentC <= -12 -> out.add(
-                Advisory(Kind.SAFETY, "Bitterly cold \u2014 cover exposed skin")
+                Advisory(Kind.SAFETY, text(context, R.string.adv_bitter_cold, "Bitterly cold \u2014 cover exposed skin"))
             )
         }
 
@@ -103,19 +104,19 @@ object Advisories {
             val dryHours = chances.takeWhile { it < 20 }.size
             if (dryHours >= 3) {
                 c.hourly.getOrNull(dryHours - 1)?.label?.let { until ->
-                    out.add(Advisory(Kind.INFO, "Dry until about $until"))
+                    out.add(Advisory(Kind.INFO, text(context, R.string.adv_dry_until, "Dry until about %1$s", until)))
                 }
             }
         }
 
         if (c.humidity in 0..54 && windKmh >= 10 && maxChance < 20 && tempC >= 14) {
-            out.add(Advisory(Kind.INFO, "Good drying day"))
+            out.add(Advisory(Kind.INFO, text(context, R.string.adv_drying_day, "Good drying day")))
         }
 
         if (!dewC.isNaN()) {
             when {
-                dewC >= 20 -> out.add(Advisory(Kind.INFO, "Muggy"))
-                dewC >= 18 -> out.add(Advisory(Kind.INFO, "Humid"))
+                dewC >= 20 -> out.add(Advisory(Kind.INFO, text(context, R.string.adv_muggy, "Muggy")))
+                dewC >= 18 -> out.add(Advisory(Kind.INFO, text(context, R.string.adv_humid, "Humid")))
             }
         }
 
@@ -123,7 +124,8 @@ object Advisories {
     }
 
     /** The single most important advisory, or null. */
-    fun top(c: OpenMeteoClient.Conditions): Advisory? = forConditions(c).firstOrNull()
+    fun top(context: Context?, c: OpenMeteoClient.Conditions): Advisory? =
+        forConditions(context, c).firstOrNull()
 
     // ------------------------------------------------------------- helpers
 
@@ -138,6 +140,17 @@ object Advisories {
         "${round(c.windSpeed)} ${if (c.metric) "km/h" else "mph"}"
 
     private fun round(v: Double): Int = Math.round(v).toInt()
+
+    /**
+     * Resource text when a context is available, the original English
+     * otherwise — the same "never crash, degrade to English" fallback used
+     * for weather condition descriptions. Centralised here rather than
+     * repeated at each of the 13 call sites above.
+     */
+    private fun text(context: Context?, resId: Int, fallback: String, vararg args: Any): String =
+        if (context != null) context.getString(resId, *args) else {
+            if (args.isEmpty()) fallback else fallback.format(*args)
+        }
 
     private fun currentHour(utcOffsetSeconds: Int): Int =
         OpenMeteoClient.locationNow(utcOffsetSeconds).get(java.util.Calendar.HOUR_OF_DAY)

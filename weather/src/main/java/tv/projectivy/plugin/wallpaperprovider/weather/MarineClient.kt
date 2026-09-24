@@ -1,5 +1,6 @@
 package tv.projectivy.plugin.wallpaperprovider.weather
 
+import android.content.Context
 import android.util.Log
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -78,7 +79,10 @@ object MarineClient {
     }
 
     /** "Waves 2 ft, 6 s" or "Waves 0.6 m, 6 s", matching the user's units. */
-    fun label(c: Conditions, metric: Boolean): String {
+    fun label(context: Context?, c: Conditions, metric: Boolean): String {
+        // Unit letters (m, ft, s) are left as-is rather than resourced — these
+        // are commonly kept in their original form across translations, the
+        // same judgment call already made for km/h elsewhere in this codebase.
         val height = if (metric) {
             "${"%.1f".format(c.waveHeightM)} m"
         } else {
@@ -86,6 +90,10 @@ object MarineClient {
             "$feet ft"
         }
         val period = "${Math.round(c.wavePeriodS)} s"
-        return "Waves $height, $period"
+        return if (context != null) {
+            context.getString(R.string.marine_waves, height, period)
+        } else {
+            "Waves $height, $period"
+        }
     }
 }

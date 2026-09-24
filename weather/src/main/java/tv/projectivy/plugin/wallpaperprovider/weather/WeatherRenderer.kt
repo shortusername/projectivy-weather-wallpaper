@@ -227,13 +227,14 @@ object WeatherRenderer {
         canvas.translate(shiftX, shiftY)
 
         // Header: says plainly what this is.
-        canvas.drawText("WORLD WEATHER WATCH", MARGIN, MARGIN + 24f, paint(34f, medium, 215))
+        val header = context.getString(R.string.world_watch_header)
+        canvas.drawText(header, MARGIN, MARGIN + 24f, paint(34f, medium, 215))
 
         // Alert-level chip beside the header.
-        val chipLabel = "${event.alertLevel.uppercase()} ALERT"
+        val chipLabel = context.getString(R.string.world_watch_alert_chip, event.alertLevel.uppercase())
         val chipPaint = paint(26f, medium, 240)
         val chipW = chipPaint.measureText(chipLabel) + 44f
-        val chipLeft = MARGIN + paint(34f, medium).measureText("WORLD WEATHER WATCH") + 40f
+        val chipLeft = MARGIN + paint(34f, medium).measureText(header) + 40f
         val chipRect = RectF(chipLeft, MARGIN - 4f, chipLeft + chipW, MARGIN + 38f)
         canvas.drawRoundRect(chipRect, 19f, 19f, Paint().apply {
             color = WorldEventsClient.colorFor(event.alertLevel)
@@ -265,7 +266,7 @@ object WeatherRenderer {
             val tp = paint(96f, light, 235)
             canvas.drawText(temp, W - MARGIN - tp.measureText(temp), H - 268f, tp)
 
-            val desc = OpenMeteoClient.describe(c.weatherCode)
+            val desc = OpenMeteoClient.describe(context, c.weatherCode)
             val dp = paint(36f, light, 200)
             canvas.drawText(desc, W - MARGIN - dp.measureText(desc), H - 214f, dp)
 
@@ -497,7 +498,7 @@ object WeatherRenderer {
 
         y += dy(90f)
         canvas.drawText(
-            OpenMeteoClient.describe(c.weatherCode), MARGIN, y, paint(sz(64f), light, 238)
+            OpenMeteoClient.describe(context, c.weatherCode), MARGIN, y, paint(sz(64f), light, 238)
         )
 
         // Whether it is about to rain matters more than anything else here, so
@@ -517,7 +518,7 @@ object WeatherRenderer {
         // One advisory, the most important. Grouped with the nowcast because
         // both answer "is there anything I should do about today".
         if (PreferencesManager.showAdvisories) {
-            Advisories.top(c)?.let { advisory ->
+            Advisories.top(context, c)?.let { advisory ->
                 y += dy(50f)
                 canvas.drawText(advisory.text, MARGIN, y, paint(sz(36f), medium).apply {
                     color = advisory.colour
@@ -529,7 +530,7 @@ object WeatherRenderer {
         // routine "Good 53" does not, and goes in the stats line instead.
         if (PreferencesManager.showAirQuality) {
             currentAir?.let { air ->
-                AirQualityClient.alertLabel(air)?.let { text ->
+                AirQualityClient.alertLabel(context, air)?.let { text ->
                     y += dy(52f)
                     canvas.drawText(text, MARGIN, y, paint(sz(38f), medium).apply {
                         color = AirQualityClient.bandColour(air.aqi)
@@ -562,7 +563,7 @@ object WeatherRenderer {
         // costs nothing on the overwhelming majority of nights.
         if (PreferencesManager.showAurora) {
             currentAurora?.let { a ->
-                AuroraClient.label(a)?.let { text ->
+                AuroraClient.label(context, a)?.let { text ->
                     y += dy(46f)
                     canvas.drawText(text, MARGIN, y, paint(sz(34f), medium, 220).apply {
                         color = Color.parseColor("#A8E6A0")
@@ -577,7 +578,7 @@ object WeatherRenderer {
             currentMarine?.let { m ->
                 y += dy(46f)
                 canvas.drawText(
-                    MarineClient.label(m, c.metric), MARGIN, y,
+                    MarineClient.label(context, m, c.metric), MARGIN, y,
                     paint(sz(34f), medium, 220).apply {
                         color = Color.parseColor("#8ECAE6")
                     }
@@ -586,7 +587,7 @@ object WeatherRenderer {
         }
 
         if (PreferencesManager.showStats) {
-            statsLine(c)?.let {
+            statsLine(context, c)?.let {
                 canvas.drawText(it, MARGIN, y, paint(sz(34f), light, 165))
                 y += dy(46f)
             }
@@ -886,7 +887,7 @@ object WeatherRenderer {
         }
     }
 
-    private fun statsLine(c: OpenMeteoClient.Conditions): String? {
+    private fun statsLine(context: Context?, c: OpenMeteoClient.Conditions): String? {
         val parts = mutableListOf<String>()
         if (c.humidity >= 0) parts.add("Humidity ${c.humidity}%")
         if (!c.uvIndexMax.isNaN()) parts.add("UV ${c.uvIndexMax.roundToInt()}")
@@ -906,7 +907,7 @@ object WeatherRenderer {
             currentAir?.let { air ->
                 parts.add(AirQualityClient.shortLabel(air))
                 // Only present where the pollen model has coverage.
-                AirQualityClient.pollenLabel(air)?.let { parts.add(it) }
+                AirQualityClient.pollenLabel(context, air)?.let { parts.add(it) }
             }
         }
         return if (parts.isEmpty()) null else parts.joinToString("   \u00B7   ")

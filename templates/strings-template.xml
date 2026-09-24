@@ -1,4 +1,31 @@
 <resources>
+    <!--
+        TRANSLATION TEMPLATE — copy this whole file to a new folder named
+        values-XX (XX = your language's two-letter code, e.g. values-de for
+        German, values-es for Spanish) inside weather/src/main/res/, then
+        translate the text between each pair of tags.
+
+        DO NOT translate or change plugin_uuid below — it's the plugin's
+        registration identity with Projectivy, must stay byte-identical in
+        every language, and changing it will break the plugin entirely.
+
+        DO translate plugin_name and plugin_description — they're what
+        Projectivy shows in its plugin picker.
+
+        Keep every name="..." attribute exactly as-is. Only the text between
+        > and < changes.
+
+        Where you see %1$s, %1$d, %2$s etc., keep them exactly as written —
+        move them to wherever they belong in your language's sentence order,
+        but don't remove, retype, or renumber them. These carry a live value
+        (a temperature, a wind speed, a Kp index) substituted in at runtime.
+
+        A partial translation is genuinely fine and useful on its own —
+        Android automatically falls back to English for any string you
+        haven't gotten to yet, so nothing breaks by translating only part
+        of this file. See TRANSLATING.md at the repo root for guidance on
+        which sections matter most if you're short on time.
+    -->
     <string name="plugin_name">Weather Wallpaper</string>
     <string name="plugin_description">Shows current conditions and today\'s high/low as your launcher wallpaper. Data by Open-Meteo.</string>
 

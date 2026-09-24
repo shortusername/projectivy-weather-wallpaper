@@ -120,6 +120,18 @@ plus PNG guide overlays for other editors.
 See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the format, safe zones, size
 limits, video encoding, and licensing rules.
 
+## Contribute a translation
+
+**Also no code required.** Everything the plugin shows — the wallpaper text
+and the settings menu — is translatable. A partial translation is genuinely
+useful: anything you don't get to simply falls back to English, nothing
+breaks.
+
+There's a ready-to-copy **template** in `templates/strings-template.xml`.
+See **[TRANSLATING.md](TRANSLATING.md)** for the full guide, including the
+one rule that actually matters (don't touch `plugin_uuid`) and which strings
+are worth doing first if you're short on time.
+
 ## Experimental features
 
 The two animation options sit behind an **Experimental features** toggle, off by

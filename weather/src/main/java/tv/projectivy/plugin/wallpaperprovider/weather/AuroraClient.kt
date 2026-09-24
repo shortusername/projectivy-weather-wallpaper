@@ -1,5 +1,6 @@
 package tv.projectivy.plugin.wallpaperprovider.weather
 
+import android.content.Context
 import android.util.Log
 import org.json.JSONArray
 import java.net.HttpURLConnection
@@ -79,12 +80,22 @@ object AuroraClient {
     }
 
     /** Short line for the panel, or null when there's nothing worth saying. */
-    fun label(c: Conditions): String? = when {
-        c.visible && c.kp >= 7 -> "Aurora likely tonight \u00B7 Kp ${fmt(c.kp)}"
-        c.visible -> "Aurora possible tonight \u00B7 Kp ${fmt(c.kp)}"
-        c.marginal && c.kp >= 6 -> "Aurora possible far north \u00B7 Kp ${fmt(c.kp)}"
-        else -> null
+    fun label(context: Context?, c: Conditions): String? {
+        val kp = fmt(c.kp)
+        return when {
+            c.visible && c.kp >= 7 ->
+                res(context, R.string.aurora_likely, "Aurora likely tonight \u00B7 Kp %1$s", kp)
+            c.visible ->
+                res(context, R.string.aurora_possible, "Aurora possible tonight \u00B7 Kp %1$s", kp)
+            c.marginal && c.kp >= 6 ->
+                res(context, R.string.aurora_possible_far_north,
+                    "Aurora possible far north \u00B7 Kp %1$s", kp)
+            else -> null
+        }
     }
+
+    private fun res(context: Context?, resId: Int, fallback: String, vararg args: Any): String =
+        if (context != null) context.getString(resId, *args) else fallback.format(*args)
 
     private fun fmt(kp: Double): String =
         if (kp == kp.toInt().toDouble()) kp.toInt().toString() else String.format("%.1f", kp)

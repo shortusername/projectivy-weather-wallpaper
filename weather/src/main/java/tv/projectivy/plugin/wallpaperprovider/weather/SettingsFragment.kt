@@ -33,6 +33,12 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val CAT_EXPERIMENTAL = "experimental"
         private const val CAT_DEMO = "demo"
         private const val CAT_HOUSEKEEPING = "housekeeping"
+        // Not a real settings category — reuses the same navigation
+        // primitive (pushCategory/newInstance) for an info-only screen
+        // rather than a filtered list of settings.
+        private const val CAT_SUPPORT = "support"
+
+        private const val SUPPORT_LINK = "https://ko-fi.com/shortusername"
 
         /**
          * Builds the sub-screen for one category. Pushed onto the fragment back
@@ -189,6 +195,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_BASEMAP_ATTR = 18L
         private const val ACTION_ID_MARINE = 50L
         private const val ACTION_ID_LAST_UPDATED = 51L
+        private const val ACTION_ID_SUPPORT = 52L
 
         /**
          * Sub-action id ranges, each 1000 wide.
@@ -237,8 +244,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
         ACTION_ID_DEMO, ACTION_ID_DEMO_LABEL -> CAT_DEMO
 
-        ACTION_ID_REFRESH, ACTION_ID_UPDATE, ACTION_ID_REPORT, ACTION_ID_UPDATE_INTERVAL ->
-            CAT_HOUSEKEEPING
+        ACTION_ID_REFRESH, ACTION_ID_UPDATE, ACTION_ID_REPORT, ACTION_ID_UPDATE_INTERVAL,
+        ACTION_ID_SUPPORT -> CAT_HOUSEKEEPING
 
         else -> null
     }
@@ -293,6 +300,17 @@ class SettingsFragment : GuidedStepSupportFragment() {
     }
 
     override fun onCreateGuidance(savedInstanceState: Bundle?): Guidance {
+        if (category == CAT_SUPPORT) {
+            val qr = QrCodeGenerator.generate(SUPPORT_LINK, 480)
+            return Guidance(
+                getString(R.string.setting_support_title),
+                getString(R.string.support_screen_desc, SUPPORT_LINK),
+                getString(R.string.settings),
+                qr?.let { android.graphics.drawable.BitmapDrawable(resources, it) }
+                    ?: AppCompatResources.getDrawable(requireActivity(), R.drawable.ic_plugin)
+            )
+        }
+
         val title = when (category) {
             CAT_LOCATION -> getString(R.string.category_location)
             CAT_APPEARANCE -> getString(R.string.category_appearance)
@@ -327,6 +345,16 @@ class SettingsFragment : GuidedStepSupportFragment() {
         // as before into a temporary list, then keeps only the ones belonging
         // to its own category — nothing about how any individual setting is
         // built has changed, only which subset ends up on which screen.
+        if (category == CAT_SUPPORT) {
+            actions.add(
+                GuidedAction.Builder(context)
+                    .id(GuidedAction.ACTION_ID_OK)
+                    .title(R.string.done)
+                    .build()
+            )
+            return
+        }
+
         if (category == null) {
             actions.addAll(rootCategoryActions())
             return
@@ -754,6 +782,14 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
+        allActions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_SUPPORT)
+                .title(R.string.setting_support_title)
+                .description(R.string.setting_support_desc)
+                .build()
+        )
+
         allActions.add(picker(ACTION_ID_UPDATE_INTERVAL, R.string.setting_update_interval_title,
             SUB_UPDATE_INTERVAL_BASE, UPDATE_INTERVALS, PreferencesManager.updateCheckInterval))
 
@@ -1037,6 +1073,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
     override fun onGuidedActionClicked(action: GuidedAction) {
         when (action.id) {
+            GuidedAction.ACTION_ID_OK -> parentFragmentManager.popBackStack()
             ACTION_ID_CAT_LOCATION -> pushCategory(CAT_LOCATION)
             ACTION_ID_CAT_APPEARANCE -> pushCategory(CAT_APPEARANCE)
             ACTION_ID_CAT_WEATHER -> pushCategory(CAT_WEATHER)
@@ -1178,6 +1215,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
             ACTION_ID_REPORT -> createReport()
+            ACTION_ID_SUPPORT -> pushCategory(CAT_SUPPORT)
             ACTION_ID_UPDATE -> checkForUpdate()
             ACTION_ID_REFRESH -> {
                 pushUpdate(WallpaperProviderContract.UpdateReason.DATA_CHANGED)
