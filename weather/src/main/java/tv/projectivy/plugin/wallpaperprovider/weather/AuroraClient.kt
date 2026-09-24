@@ -84,12 +84,12 @@ object AuroraClient {
         val kp = fmt(c.kp)
         return when {
             c.visible && c.kp >= 7 ->
-                res(context, R.string.aurora_likely, "Aurora likely tonight \u00B7 Kp %1$s", kp)
+                res(context, R.string.aurora_likely, "Aurora likely tonight \u00B7 Kp %1\$s", kp)
             c.visible ->
-                res(context, R.string.aurora_possible, "Aurora possible tonight \u00B7 Kp %1$s", kp)
+                res(context, R.string.aurora_possible, "Aurora possible tonight \u00B7 Kp %1\$s", kp)
             c.marginal && c.kp >= 6 ->
                 res(context, R.string.aurora_possible_far_north,
-                    "Aurora possible far north \u00B7 Kp %1$s", kp)
+                    "Aurora possible far north \u00B7 Kp %1\$s", kp)
             else -> null
         }
     }

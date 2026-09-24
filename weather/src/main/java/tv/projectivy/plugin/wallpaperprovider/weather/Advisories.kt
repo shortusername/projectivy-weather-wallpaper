@@ -72,18 +72,18 @@ object Advisories {
         if (!c.uvIndexMax.isNaN()) {
             when {
                 c.uvIndexMax >= 8 -> out.add(
-                    Advisory(Kind.SAFETY, text(context, R.string.adv_uv_very_high, "Very high UV today \u00B7 index %1$d", round(c.uvIndexMax)))
+                    Advisory(Kind.SAFETY, text(context, R.string.adv_uv_very_high, "Very high UV today \u00B7 index %1\$d", round(c.uvIndexMax)))
                 )
                 // Pointless to warn about UV once the sun is going down.
                 c.uvIndexMax >= 6 && hour < 16 -> out.add(
-                    Advisory(Kind.INFO, text(context, R.string.adv_uv_high, "High UV today \u00B7 index %1$d", round(c.uvIndexMax)))
+                    Advisory(Kind.INFO, text(context, R.string.adv_uv_high, "High UV today \u00B7 index %1\$d", round(c.uvIndexMax)))
                 )
             }
         }
 
         when {
             windKmh >= 50 -> out.add(
-                Advisory(Kind.SAFETY, text(context, R.string.adv_very_windy, "Very windy \u00B7 %1$s", windSpeedLabel(c)))
+                Advisory(Kind.SAFETY, text(context, R.string.adv_very_windy, "Very windy \u00B7 %1\$s", windSpeedLabel(c)))
             )
             windKmh >= 35 -> out.add(Advisory(Kind.INFO, text(context, R.string.adv_windy, "Windy today")))
         }
@@ -104,7 +104,7 @@ object Advisories {
             val dryHours = chances.takeWhile { it < 20 }.size
             if (dryHours >= 3) {
                 c.hourly.getOrNull(dryHours - 1)?.label?.let { until ->
-                    out.add(Advisory(Kind.INFO, text(context, R.string.adv_dry_until, "Dry until about %1$s", until)))
+                    out.add(Advisory(Kind.INFO, text(context, R.string.adv_dry_until, "Dry until about %1\$s", until)))
                 }
             }
         }
