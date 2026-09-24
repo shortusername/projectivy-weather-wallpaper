@@ -255,7 +255,7 @@ class WallpaperProviderService : Service() {
                         uri = uri.toString(),
                         type = WallpaperType.IMAGE,
                         displayMode = WallpaperDisplayMode.CROP,
-                        title = OpenMeteoClient.describe(conditions.weatherCode),
+                        title = OpenMeteoClient.describe(this@WallpaperProviderService, conditions.weatherCode),
                         source = "https://open-meteo.com/",
                         author = "Open-Meteo"
                     )
@@ -394,7 +394,7 @@ class WallpaperProviderService : Service() {
             WeatherRenderer.currentAurora?.kp,
             WeatherRenderer.currentMarine?.waveHeightM,
             WeatherRenderer.currentAir?.aqi,
-            Advisories.top(c)?.text,
+            Advisories.top(this, c)?.text,
             UpdateChecker.pendingVersion(BuildConfig.VERSION_NAME),
             minute,
             burnInBucket
@@ -534,7 +534,7 @@ class WallpaperProviderService : Service() {
             uri = uri.toString(),
             type = WallpaperType.VIDEO,
             displayMode = WallpaperDisplayMode.CROP,
-            title = OpenMeteoClient.describe(c.weatherCode),
+            title = OpenMeteoClient.describe(this, c.weatherCode),
             source = "RainViewer",
             author = "RainViewer"
         )
@@ -747,7 +747,7 @@ class WallpaperProviderService : Service() {
             uri = uri.toString(),
             type = WallpaperType.VIDEO,
             displayMode = WallpaperDisplayMode.CROP,
-            title = OpenMeteoClient.describe(c.weatherCode),
+            title = OpenMeteoClient.describe(this, c.weatherCode),
             source = "Open-Meteo",
             author = "Open-Meteo"
         )
