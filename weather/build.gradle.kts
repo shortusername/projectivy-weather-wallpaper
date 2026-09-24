@@ -97,4 +97,6 @@ dependencies {
     implementation(libs.androidx.preference.ktx)
     implementation(libs.kotlinx.serialization.json)
     implementation(project(":api"))
+    implementation("com.google.zxing:core:3.5.3")
+}
 }
