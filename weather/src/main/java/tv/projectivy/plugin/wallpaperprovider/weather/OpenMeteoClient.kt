@@ -22,6 +22,8 @@ object OpenMeteoClient {
 
     data class HourEntry(
         val label: String,
+        /** Hour of day (0-23) at the location; the renderer formats it per locale. */
+        val hour: Int,
         val temperature: Double,
         val weatherCode: Int,
         val precipChance: Int,
@@ -30,6 +32,8 @@ object OpenMeteoClient {
 
     data class DayEntry(
         val label: String,
+        /** ISO date, so the renderer can name the weekday in the device language. */
+        val isoDate: String,
         val high: Double,
         val low: Double,
         val weatherCode: Int
@@ -181,6 +185,7 @@ object OpenMeteoClient {
                 out.add(
                     HourEntry(
                         label = formatHour(times.getString(i)),
+                        hour = times.getString(i).substring(11, 13).toInt(),
                         temperature = temps.getDouble(i),
                         weatherCode = codes.getInt(i),
                         precipChance = precip?.optInt(i, 0) ?: 0,
@@ -207,6 +212,7 @@ object OpenMeteoClient {
             out.add(
                 DayEntry(
                     label = dayOfWeek(times.getString(i)),
+                    isoDate = times.getString(i),
                     high = max.getDouble(i),
                     low = min.getDouble(i),
                     weatherCode = codes?.optInt(i, 0) ?: 0
@@ -310,21 +316,34 @@ object OpenMeteoClient {
     }
 
     /** Short line describing imminent precipitation, or null when steady. */
-    fun nowcastLabel(n: Nowcast, code: Int): String? {
-        val kind = when (bucket(code)) {
-            "snow" -> "Snow"
-            else -> "Rain"
-        }
+    fun nowcastLabel(context: Context?, n: Nowcast, code: Int): String? {
+        // Rain and snow are separate strings rather than one sentence with a
+        // substituted noun: in many languages the surrounding words change with
+        // the noun, so a shared template can't be translated correctly.
+        val snow = bucket(code) == "snow"
+        val starts = n.startsInMinutes
+        val stops = n.stopsInMinutes
         return when {
-            !n.fallingNow && n.startsInMinutes != null && n.startsInMinutes <= 15 ->
-                "$kind starting shortly"
-            !n.fallingNow && n.startsInMinutes != null ->
-                "$kind starting in about ${n.startsInMinutes} min"
-            n.fallingNow && n.stopsInMinutes != null && n.stopsInMinutes <= 15 ->
-                "Easing off shortly"
-            n.fallingNow && n.stopsInMinutes != null ->
-                "$kind easing in about ${n.stopsInMinutes} min"
-            n.fallingNow -> "$kind continuing"
+            !n.fallingNow && starts != null && starts <= 15 ->
+                if (snow) TextFormats.tr(context, R.string.nowcast_snow_shortly, "Snow starting shortly")
+                else TextFormats.tr(context, R.string.nowcast_rain_shortly, "Rain starting shortly")
+            !n.fallingNow && starts != null ->
+                if (snow) TextFormats.tr(
+                    context, R.string.nowcast_snow_in, "Snow starting in about $starts min", starts
+                ) else TextFormats.tr(
+                    context, R.string.nowcast_rain_in, "Rain starting in about $starts min", starts
+                )
+            n.fallingNow && stops != null && stops <= 15 ->
+                TextFormats.tr(context, R.string.nowcast_easing_shortly, "Easing off shortly")
+            n.fallingNow && stops != null ->
+                if (snow) TextFormats.tr(
+                    context, R.string.nowcast_snow_easing_in, "Snow easing in about $stops min", stops
+                ) else TextFormats.tr(
+                    context, R.string.nowcast_rain_easing_in, "Rain easing in about $stops min", stops
+                )
+            n.fallingNow ->
+                if (snow) TextFormats.tr(context, R.string.nowcast_snow_continuing, "Snow continuing")
+                else TextFormats.tr(context, R.string.nowcast_rain_continuing, "Rain continuing")
             else -> null
         }
     }
@@ -406,13 +425,20 @@ object OpenMeteoClient {
     }
 
     /** Degrees to a 16-point compass label. */
-    fun compass(degrees: Int): String {
+    fun compass(context: Context?, degrees: Int): String {
         if (degrees < 0) return ""
-        val points = listOf(
+        val points = arrayOf(
             "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
             "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
         )
-        return points[(((degrees % 360) + 360) % 360 * 16 / 360) % 16]
+        val names = intArrayOf(
+            R.string.compass_n, R.string.compass_nne, R.string.compass_ne, R.string.compass_ene,
+            R.string.compass_e, R.string.compass_ese, R.string.compass_se, R.string.compass_sse,
+            R.string.compass_s, R.string.compass_ssw, R.string.compass_sw, R.string.compass_wsw,
+            R.string.compass_w, R.string.compass_wnw, R.string.compass_nw, R.string.compass_nnw
+        )
+        val i = (((degrees % 360) + 360) % 360 * 16 / 360) % 16
+        return if (context != null) context.getString(names[i]) else points[i]
     }
 
     /**

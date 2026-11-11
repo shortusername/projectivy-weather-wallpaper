@@ -86,6 +86,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val SUB_RADAR = 103L
         private const val SUB_PACK = 104L
         private const val SUB_SATELLITE = 105L
+        private const val SUB_WIND = 106L
         private const val SUB_LBL_OFF = 110L
         private const val SUB_LBL_FEW = 111L
         private const val SUB_LBL_BAL = 112L
@@ -411,9 +412,13 @@ class SettingsFragment : GuidedStepSupportFragment() {
             .title(R.string.setting_add_location_title)
             .editDescription("")
             .descriptionEditable(true)
-        if (pending.size > 1) {
+        if (pending.isNotEmpty()) {
             addBuilder
-                .description(getString(R.string.locations_pick_match, pending.size))
+                .description(
+                    resources.getQuantityString(
+                        R.plurals.locations_pick_match, pending.size, pending.size
+                    )
+                )
                 .subActions(
                     pending.mapIndexed { i, place ->
                         GuidedAction.Builder(context)
@@ -490,7 +495,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
                         subAction(SUB_STOCK, R.string.background_stock),
                         subAction(SUB_RADAR, R.string.background_radar),
                         subAction(SUB_PACK, R.string.background_pack),
-                        subAction(SUB_SATELLITE, R.string.background_satellite)
+                        subAction(SUB_SATELLITE, R.string.background_satellite),
+                        subAction(SUB_WIND, R.string.background_wind)
                     )
                 )
                 .build()
@@ -1025,6 +1031,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
             SUB_RADAR -> Backgrounds.SOURCE_RADAR
             SUB_PACK -> Backgrounds.SOURCE_PACK
             SUB_SATELLITE -> Backgrounds.SOURCE_SATELLITE
+            SUB_WIND -> Backgrounds.SOURCE_WIND
             else -> Backgrounds.SOURCE_SCENE
         }
         PreferencesManager.backgroundSource = source
@@ -1208,7 +1215,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
             ACTION_ID_DEMO -> {
                 PreferencesManager.demoMode = action.isChecked
                 if (action.isChecked &&
-                    PreferencesManager.backgroundSource == Backgrounds.SOURCE_RADAR
+                    (PreferencesManager.backgroundSource == Backgrounds.SOURCE_RADAR ||
+                        PreferencesManager.backgroundSource == Backgrounds.SOURCE_WIND)
                 ) {
                     toast(getString(R.string.toast_demo_radar_warning))
                 }
@@ -1438,14 +1446,28 @@ class SettingsFragment : GuidedStepSupportFragment() {
                         action.description = getString(R.string.locations_no_match, query)
                         notifyActionChanged(findActionPositionById(ACTION_ID_ADD_LOCATION))
                     }
-                    results.size == 1 -> addPlace(results.first())
                     else -> {
+                        // Always confirm, even for exactly one match. A single
+                        // result still means Open-Meteo's own fuzzy name
+                        // matching picked it, not that it's necessarily
+                        // correct — a search like "Yorktown Heights" can
+                        // resolve to a single, wrong "Yorktown" in a
+                        // different state if the exact hamlet name isn't a
+                        // distinct entry in the geocoding data. Auto-adding
+                        // on a single result removed the one chance to catch
+                        // that before every piece of displayed weather data
+                        // was silently wrong.
+                        //
                         // Rebuild rather than assigning subActions to the bound
                         // action: Leanback decides an action's sub-action
                         // affordance when it binds, so a list attached
                         // afterwards opens but can't be operated.
                         rebuild()
-                        toast(getString(R.string.locations_pick_match, results.size))
+                        toast(
+                            resources.getQuantityString(
+                                R.plurals.locations_pick_match, results.size, results.size
+                            )
+                        )
                     }
                 }
             }
@@ -1555,6 +1577,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
             Backgrounds.SOURCE_GRADIENT -> R.string.background_gradient
             Backgrounds.SOURCE_PACK -> R.string.background_pack
             Backgrounds.SOURCE_SATELLITE -> R.string.background_satellite
+            Backgrounds.SOURCE_WIND -> R.string.background_wind
             else -> R.string.background_scene
         }
     )

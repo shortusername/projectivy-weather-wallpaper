@@ -30,7 +30,7 @@ it's checked automatically on every pull request.
 
 ## A partial translation is genuinely useful
 
-You don't need to do all ~260 strings in one sitting. Android falls back to
+You don't need to do all about 300 strings in one sitting. Android falls back to
 English automatically for anything you haven't translated yet, string by
 string — nothing breaks, nothing looks obviously wrong, it just shows
 English for whatever's missing. Submit 20 strings, submit 200, submit more
@@ -48,7 +48,11 @@ read once in a settings menu:
 3. **Aurora, marine, and air quality/pollen** (`aurora_*`, `marine_*`,
    `aqi_*`, `pollen_*`) — on-screen when those features are enabled and
    relevant.
-4. Everything else — the settings menu itself (`setting_*` and friends).
+4. **The detail, stats, sun and nowcast lines** (`detail_*`, `stat_*`, `sun_*`,
+   `yesterday_*`, `nowcast_*`, `compass_*`) — "Feels like", "Humidity",
+   "Sunrise", "Rain starting shortly", the wind direction letters. Visible
+   whenever those panels are on.
+5. Everything else — the settings menu itself (`setting_*` and friends).
    Read occasionally while configuring the plugin, not stared at all day.
 
 ## Placeholders
@@ -66,11 +70,41 @@ that's expected and fine. Just don't delete it, retype it, or change its
 number. A string with two placeholders (`%1$s` and `%2$s`) needs both to
 appear somewhere in your translation, each exactly once.
 
+## Apostrophes, percent signs and plurals
+
+The automated check catches these, but they're worth knowing up front:
+
+- **Apostrophes** are written `\'`: `L\'altitude`, not `L'altitude`. An
+  unescaped one stops the app from building at all. It comes up constantly in
+  French, Italian and Catalan.
+- **A literal percent sign** is written `%%` in any string that also has a
+  placeholder, e.g. `Humedad %1$d%%`. A single `%` makes the string unusable.
+- **Plurals** are the `<plurals>` block near the end of the file (currently one,
+  the search-results message). It needs an `other` item, plus `one` if your
+  language has a singular form, plus any further forms yours uses (`few`,
+  `many`). The `one` item may leave the number out ("Un resultado"); the others
+  keep `%1$d`.
+
+## Nothing to translate for times, dates and weekdays
+
+Clock times, the hourly labels, weekday names, dates, and AM/PM on the
+wallpaper all follow the device's language automatically, and respect the
+12/24-hour setting. There's no string for them in the file; they'll simply come
+out in your language.
+
+## The compass letters
+
+`compass_n` through `compass_nnw` are the wind-direction abbreviations. Use
+your language's own: Spanish writes `O` for west (oeste), so `SW` becomes `SO`
+and `WNW` becomes `ONO`.
+
 ## What's deliberately left in English
 
 A few things are kept in their original form rather than translated, since
 that's already common practice across many languages: unit abbreviations
-like `km/h`, `mph`, `m`, `ft`, and the letters `AQI`. If your language
+like `km/h`, `mph`, `m`, `ft`, and the letters `AQI`. The small data-source
+credits at the foot of the wallpaper ("Radar: RainViewer", "Wind: Open-Meteo")
+also stay in English: they're attributions built around proper names. If your language
 genuinely does write these differently, translating them is fine too — this
 is a default, not a rule.
 

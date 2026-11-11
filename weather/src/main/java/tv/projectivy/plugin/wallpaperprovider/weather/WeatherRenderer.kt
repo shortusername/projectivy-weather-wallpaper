@@ -506,7 +506,7 @@ object WeatherRenderer {
         // Costs no space when there's nothing imminent.
         if (PreferencesManager.showNowcast) {
             c.nowcast?.let { n ->
-                OpenMeteoClient.nowcastLabel(n, c.weatherCode)?.let { text ->
+                OpenMeteoClient.nowcastLabel(context, n, c.weatherCode)?.let { text ->
                     y += dy(52f)
                     canvas.drawText(text, MARGIN, y, paint(sz(40f), medium).apply {
                         color = Color.parseColor("#8FD3F4")
@@ -542,15 +542,35 @@ object WeatherRenderer {
         y += dy(78f)
 
         // Primary detail line, always shown.
-        val wind = buildString {
-            append("Wind ${c.windSpeed.roundToInt()}")
-            val dir = OpenMeteoClient.compass(c.windDirection)
-            if (dir.isNotEmpty()) append(" $dir")
+        val windSpeedRounded = c.windSpeed.roundToInt()
+        val windDirText = OpenMeteoClient.compass(context, c.windDirection)
+        val wind = if (windDirText.isNotEmpty()) {
+            TextFormats.tr(
+                context, R.string.detail_wind_dir,
+                "Wind $windSpeedRounded $windDirText", windSpeedRounded, windDirText
+            )
+        } else {
+            TextFormats.tr(context, R.string.detail_wind, "Wind $windSpeedRounded", windSpeedRounded)
         }
-        val yesterday = if (PreferencesManager.showYesterday) yesterdayPhrase(c) else null
+        val yesterday = if (PreferencesManager.showYesterday) yesterdayPhrase(context, c) else null
+        val feelsLikeRounded = c.apparentTemperature.roundToInt()
+        val highRounded = c.high.roundToInt()
+        val lowRounded = c.low.roundToInt()
         val detail = buildString {
-            append("Feels like ${c.apparentTemperature.roundToInt()}\u00B0   \u00B7   ")
-            append("H ${c.high.roundToInt()}\u00B0  L ${c.low.roundToInt()}\u00B0   \u00B7   ")
+            append(
+                TextFormats.tr(
+                    context, R.string.detail_feels_like,
+                    "Feels like $feelsLikeRounded\u00B0", feelsLikeRounded
+                )
+            )
+            append("   \u00B7   ")
+            append(
+                TextFormats.tr(
+                    context, R.string.detail_high_low,
+                    "H $highRounded\u00B0  L $lowRounded\u00B0", highRounded, lowRounded
+                )
+            )
+            append("   \u00B7   ")
             append(wind)
             // Appended rather than given its own line: it's context, and the
             // panel has limited vertical room.
@@ -594,7 +614,7 @@ object WeatherRenderer {
         }
 
         if (PreferencesManager.showSun) {
-            sunLine(c)?.let {
+            sunLine(context, c)?.let {
                 canvas.drawText(it, MARGIN, y, paint(sz(34f), light, 165))
                 y += dy(46f)
             }
@@ -618,7 +638,7 @@ object WeatherRenderer {
             if (stripTop >= y - 6f) {
                 var x = MARGIN
                 if (showHourly) {
-                    x = hourlyStrip(canvas, c, x, stripTop)
+                    x = hourlyStrip(canvas, c, x, stripTop, TextFormats.use24Hour(context))
                     x += dy(70f)
                 }
                 if (showDaily) {
@@ -630,7 +650,10 @@ object WeatherRenderer {
         // Update notice, kept to the same small print as the credits. A
         // wallpaper is a poor place to shout, and it self-clears once updated.
         UpdateChecker.pendingVersion(BuildConfig.VERSION_NAME)?.let { version ->
-            val notice = "Update available \u00B7 v$version"
+            val notice = TextFormats.tr(
+                context, R.string.update_available_notice,
+                "Update available \u00B7 v$version", version
+            )
             val p = paint(sz(26f), medium, 150)
             canvas.drawText(notice, MARGIN, H - MARGIN * 0.45f - dy(34f), p)
         }
@@ -647,13 +670,12 @@ object WeatherRenderer {
         // showing up as a wrong-looking clock.
         if (PreferencesManager.showLastUpdated) {
             val now = OpenMeteoClient.locationNow(c.utcOffsetSeconds)
-            val is24 = context?.let { use24Hour(it) } ?: false
-            val hour = if (is24) now.get(java.util.Calendar.HOUR_OF_DAY)
-            else now.get(java.util.Calendar.HOUR).let { if (it == 0) 12 else it }
-            val minute = now.get(java.util.Calendar.MINUTE)
-            val suffix = if (is24) "" else
-                if (now.get(java.util.Calendar.AM_PM) == java.util.Calendar.AM) " AM" else " PM"
-            val label = "Updated %d:%02d%s".format(hour, minute, suffix)
+            val timeText = TextFormats.time(
+                now.get(java.util.Calendar.HOUR_OF_DAY),
+                now.get(java.util.Calendar.MINUTE),
+                TextFormats.use24Hour(context)
+            )
+            val label = TextFormats.tr(context, R.string.last_updated_label, "Updated $timeText", timeText)
             val p2 = paint(26f, light, 130)
             canvas.drawText(label, W - MARGIN - p2.measureText(label), H - 46f, p2)
         }
@@ -684,18 +706,9 @@ object WeatherRenderer {
         }
     }
 
-    private fun use24Hour(context: Context): Boolean =
-        when (PreferencesManager.clockHours) {
-            PreferencesManager.CLOCK_HOURS_12 -> false
-            PreferencesManager.CLOCK_HOURS_24 -> true
-            // The system setting is right for most people, but a TV's locale is
-            // often wrong for the household using it, hence the override above.
-            else -> android.text.format.DateFormat.is24HourFormat(context)
-        }
+    private fun use24Hour(context: Context): Boolean = TextFormats.use24Hour(context)
 
-    private fun dateText(cal: java.util.Calendar): String =
-        java.text.SimpleDateFormat("EEE d MMM", java.util.Locale.getDefault())
-            .format(cal.time)
+    private fun dateText(cal: java.util.Calendar): String = TextFormats.dateText(cal)
 
     private fun drawDigitalClock(
         canvas: Canvas,
@@ -708,8 +721,7 @@ object WeatherRenderer {
         val hour = if (h24) cal.get(java.util.Calendar.HOUR_OF_DAY)
         else cal.get(java.util.Calendar.HOUR).let { if (it == 0) 12 else it }
         val time = String.format("%d:%02d", hour, cal.get(java.util.Calendar.MINUTE))
-        val suffix = if (h24) null else
-            if (cal.get(java.util.Calendar.AM_PM) == java.util.Calendar.AM) "AM" else "PM"
+        val suffix = if (h24) null else TextFormats.amPm(cal)
 
         val face = if (PreferencesManager.clockStyle == PreferencesManager.CLOCK_DIGITAL_BOLD)
             medium else light
@@ -877,26 +889,38 @@ object WeatherRenderer {
      * A one-degree difference isn't worth a line, and reporting it would make
      * the comparison feel like noise rather than information.
      */
-    private fun yesterdayPhrase(c: OpenMeteoClient.Conditions): String? {
+    private fun yesterdayPhrase(context: Context?, c: OpenMeteoClient.Conditions): String? {
         val y = c.yesterdayHigh ?: return null
         val delta = (c.high - y).roundToInt()
         return when {
-            delta >= 2 -> "$delta\u00B0 warmer than yesterday"
-            delta <= -2 -> "${-delta}\u00B0 cooler than yesterday"
+            delta >= 2 -> TextFormats.tr(
+                context, R.string.yesterday_warmer, "$delta\u00B0 warmer than yesterday", delta
+            )
+            delta <= -2 -> TextFormats.tr(
+                context, R.string.yesterday_cooler, "${-delta}\u00B0 cooler than yesterday", -delta
+            )
             else -> null
         }
     }
 
     private fun statsLine(context: Context?, c: OpenMeteoClient.Conditions): String? {
         val parts = mutableListOf<String>()
-        if (c.humidity >= 0) parts.add("Humidity ${c.humidity}%")
-        if (!c.uvIndexMax.isNaN()) parts.add("UV ${c.uvIndexMax.roundToInt()}")
-        if (!c.dewPoint.isNaN()) parts.add("Dew ${c.dewPoint.roundToInt()}\u00B0")
+        if (c.humidity >= 0) {
+            parts.add(TextFormats.tr(context, R.string.stat_humidity, "Humidity ${c.humidity}%", c.humidity))
+        }
+        if (!c.uvIndexMax.isNaN()) {
+            val uv = c.uvIndexMax.roundToInt()
+            parts.add(TextFormats.tr(context, R.string.stat_uv, "UV $uv", uv))
+        }
+        if (!c.dewPoint.isNaN()) {
+            val dew = c.dewPoint.roundToInt()
+            parts.add(TextFormats.tr(context, R.string.stat_dew, "Dew $dew\u00B0", dew))
+        }
         if (!c.visibility.isNaN()) {
             // Open-Meteo returns visibility in metres regardless of unit choice.
             val v = if (c.metric) "${(c.visibility / 1000).roundToInt()} km"
             else "${(c.visibility / 1609.34).roundToInt()} mi"
-            parts.add("Visibility $v")
+            parts.add(TextFormats.tr(context, R.string.stat_visibility, "Visibility $v", v))
         }
         if (!c.pressure.isNaN()) {
             val p = if (c.metric) "${c.pressure.roundToInt()} hPa"
@@ -913,36 +937,45 @@ object WeatherRenderer {
         return if (parts.isEmpty()) null else parts.joinToString("   \u00B7   ")
     }
 
-    private fun sunLine(c: OpenMeteoClient.Conditions): String? {
-        val rise = OpenMeteoClient.formatTime(c.sunrise)
-        val set = OpenMeteoClient.formatTime(c.sunset)
+    private fun sunLine(context: Context?, c: OpenMeteoClient.Conditions): String? {
+        val is24 = TextFormats.use24Hour(context)
+        val rise = TextFormats.timeFromIso(c.sunrise, is24)
+        val set = TextFormats.timeFromIso(c.sunset, is24)
         if (rise.isEmpty() && set.isEmpty()) return null
 
         val parts = mutableListOf<String>()
-        if (rise.isNotEmpty()) parts.add("Sunrise $rise")
-        if (set.isNotEmpty()) parts.add("Sunset $set")
+        if (rise.isNotEmpty()) parts.add(TextFormats.tr(context, R.string.sun_sunrise, "Sunrise $rise", rise))
+        if (set.isNotEmpty()) parts.add(TextFormats.tr(context, R.string.sun_sunset, "Sunset $set", set))
 
         // Only meaningful while the sun is still up.
         if (c.isDay && c.sunset.isNotEmpty()) {
-            val nowIso = c.sunset.substring(0, 11) + nowClock()
+            // The location's own clock, not the device's: sunset is a time at
+            // the displayed place, so comparing it with the device's time of day
+            // gave the wrong countdown anywhere in a different timezone. Locale.US
+            // keeps the digits ASCII, since the result is parsed, not displayed.
+            val here = OpenMeteoClient.locationNow(c.utcOffsetSeconds)
+            val nowIso = c.sunset.substring(0, 11) + String.format(
+                java.util.Locale.US, "%02d:%02d",
+                here.get(java.util.Calendar.HOUR_OF_DAY), here.get(java.util.Calendar.MINUTE)
+            )
             OpenMeteoClient.minutesUntil(c.sunset, nowIso)?.let { mins ->
                 val h = mins / 60
                 val m = mins % 60
-                parts.add(if (h > 0) "${h}h ${m}m of daylight left" else "${m}m of daylight left")
+                parts.add(
+                    if (h > 0) {
+                        TextFormats.tr(
+                            context, R.string.sun_daylight_left_hm,
+                            "${h}h ${m}m of daylight left", h, m
+                        )
+                    } else {
+                        TextFormats.tr(context, R.string.sun_daylight_left_m, "${m}m of daylight left", m)
+                    }
+                )
             }
         }
         return parts.joinToString("   \u00B7   ")
     }
 
-    /** Local wall clock as "HH:mm", to compare against Open-Meteo's local times. */
-    private fun nowClock(): String {
-        val cal = java.util.Calendar.getInstance()
-        return String.format(
-            "%02d:%02d",
-            cal.get(java.util.Calendar.HOUR_OF_DAY),
-            cal.get(java.util.Calendar.MINUTE)
-        )
-    }
 
     // ----------------------------------------------------------------- strips
 
@@ -951,7 +984,8 @@ object WeatherRenderer {
         canvas: Canvas,
         c: OpenMeteoClient.Conditions,
         startX: Float,
-        top: Float
+        top: Float,
+        is24: Boolean
     ): Float {
         val colWidth = 118f * scale
         val entries = c.hourly.take(6)
@@ -964,7 +998,8 @@ object WeatherRenderer {
 
         entries.forEachIndexed { i, hour ->
             val cx = startX + colWidth * i + colWidth / 2f - dy(12f)
-            canvas.drawText(hour.label, cx - labelHalf(hour.label, sz(28f)), top + dy(22f), paint(sz(28f), light, 175))
+            val hourText = TextFormats.hourLabel(hour.hour, is24)
+            canvas.drawText(hourText, cx - labelHalf(hourText, sz(28f)), top + dy(22f), paint(sz(28f), light, 175))
             WeatherIcons.draw(canvas, hour.weatherCode, hour.isDay, cx, top + dy(60f), sz(46f))
             val t = "${hour.temperature.roundToInt()}\u00B0"
             canvas.drawText(t, cx - labelHalf(t, sz(36f)), top + dy(108f), paint(sz(36f), light, 235))
@@ -999,7 +1034,8 @@ object WeatherRenderer {
 
         entries.forEachIndexed { i, day ->
             val cx = startX + colWidth * i + colWidth / 2f - dy(12f)
-            canvas.drawText(day.label, cx - labelHalf(day.label, sz(28f)), top + dy(22f), paint(sz(28f), light, 175))
+            val dayText = TextFormats.weekday(day.isoDate).ifEmpty { day.label }
+            canvas.drawText(dayText, cx - labelHalf(dayText, sz(28f)), top + dy(22f), paint(sz(28f), light, 175))
             WeatherIcons.draw(canvas, day.weatherCode, true, cx, top + dy(60f), sz(46f))
             val hi = "${day.high.roundToInt()}\u00B0"
             val lo = "${day.low.roundToInt()}\u00B0"

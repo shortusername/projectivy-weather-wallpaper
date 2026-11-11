@@ -62,9 +62,16 @@ large for your room.
 |---|---|---|
 | Illustrated scenes | nothing | Drawn in code, matched to conditions. Default. |
 | Live radar | nothing | [RainViewer](https://www.rainviewer.com/) over a built-in vector map |
+| Satellite | nothing | Real cloud imagery from NOAA GOES (public domain). Covers the Americas, Atlantic and Pacific; there's a gap through the Middle East, China and Southeast Asia |
+| Wind flow map | nothing | Streaks that follow the wind, coloured by speed, over the same built-in vector map. Wind data from [Open-Meteo](https://open-meteo.com/) |
 | Your photos or videos | files on the TV | Drop them in the plugin's folder, named by condition |
 | Community packs | nothing | Contributed images and videos, downloaded on demand |
 | Plain gradient | nothing | If you want it quiet |
+
+The **Map area** setting controls how much ground the radar and wind maps cover.
+The wind map is a still picture: the direction reads from each streak fading from
+tail to head, with no animation, so it works on every device and never interferes
+with the screensaver.
 
 Everything follows sunrise and sunset automatically, with a twilight window
 either side — four phases rather than a day/night flip. Optional holiday themes
@@ -224,6 +231,7 @@ consider turning off sun times, which narrow down your coordinates.
 | `itemsCacheDurationMillis` | 15 min | How long the launcher reuses the last response |
 | `MIN_FETCH_INTERVAL_MS` | 10 min | Floor on actual Open-Meteo calls |
 | Background cache | 9 min | Reuses the composed background between renders |
+| Wind data cache | 60 min | How long a fetched wind grid is reused. Wind changes slowly, and one request covers the whole map |
 | Pack index cache | 24 hours | How often the pack list is re-checked |
 
 Expect the reading to update roughly every 15 minutes. Projectivy's own wallpaper

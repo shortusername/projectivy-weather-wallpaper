@@ -103,7 +103,10 @@ object Advisories {
         if (maxChance >= 40) {
             val dryHours = chances.takeWhile { it < 20 }.size
             if (dryHours >= 3) {
-                c.hourly.getOrNull(dryHours - 1)?.label?.let { until ->
+                c.hourly.getOrNull(dryHours - 1)?.let { entry ->
+                    val until = if (context != null) {
+                        TextFormats.hourLabel(entry.hour, TextFormats.use24Hour(context))
+                    } else entry.label
                     out.add(Advisory(Kind.INFO, text(context, R.string.adv_dry_until, "Dry until about %1\$s", until)))
                 }
             }

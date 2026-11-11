@@ -25,6 +25,10 @@
         haven't gotten to yet, so nothing breaks by translating only part
         of this file. See TRANSLATING.md at the repo root for guidance on
         which sections matter most if you're short on time.
+
+        Also: write an apostrophe as \' and a literal percent sign as %% (the
+        automated check enforces both), and keep the <plurals> block's "other" item.
+        See TRANSLATING.md.
     -->
     <string name="plugin_name">Weather Wallpaper</string>
     <string name="plugin_description">Shows current conditions and today\'s high/low as your launcher wallpaper. Data by Open-Meteo.</string>
@@ -61,6 +65,57 @@
          wallpaper text. %1$d / %1$s placeholders carry a number or a
          pre-formatted value (e.g. wind speed already in the user's units) —
          a translation only needs to move the placeholder, not compute it. -->
+    <!-- Detail, stats and sun lines drawn on the wallpaper. The %1$d, %1$s style
+         placeholders carry a live value: move each to wherever your language needs
+         it, but keep every one exactly once. "%%" prints a literal percent sign. -->
+    <string name="detail_feels_like">Feels like %1$d\u00B0</string>
+    <string name="detail_high_low">H %1$d\u00B0  L %2$d\u00B0</string>
+    <string name="detail_wind">Wind %1$d</string>
+    <string name="detail_wind_dir">Wind %1$d %2$s</string>
+    <string name="yesterday_warmer">%1$d\u00B0 warmer than yesterday</string>
+    <string name="yesterday_cooler">%1$d\u00B0 cooler than yesterday</string>
+    <string name="stat_humidity">Humidity %1$d%%</string>
+    <string name="stat_uv">UV %1$d</string>
+    <string name="stat_dew">Dew %1$d\u00B0</string>
+    <string name="stat_visibility">Visibility %1$s</string>
+    <string name="sun_sunrise">Sunrise %1$s</string>
+    <string name="sun_sunset">Sunset %1$s</string>
+    <string name="sun_daylight_left_hm">%1$dh %2$dm of daylight left</string>
+    <string name="sun_daylight_left_m">%1$dm of daylight left</string>
+    <string name="update_available_notice">Update available \u00B7 v%1$s</string>
+    <string name="last_updated_label">Updated %1$s</string>
+
+    <!-- Rain and snow are separate on purpose: the words around the noun change
+         with it in many languages, so one shared sentence can't be translated. -->
+    <string name="nowcast_rain_shortly">Rain starting shortly</string>
+    <string name="nowcast_snow_shortly">Snow starting shortly</string>
+    <string name="nowcast_rain_in">Rain starting in about %1$d min</string>
+    <string name="nowcast_snow_in">Snow starting in about %1$d min</string>
+    <string name="nowcast_easing_shortly">Easing off shortly</string>
+    <string name="nowcast_rain_easing_in">Rain easing in about %1$d min</string>
+    <string name="nowcast_snow_easing_in">Snow easing in about %1$d min</string>
+    <string name="nowcast_rain_continuing">Rain continuing</string>
+    <string name="nowcast_snow_continuing">Snow continuing</string>
+
+    <!-- Compass points for the wind direction, from north clockwise. Translate to
+         your language's own abbreviations (Spanish uses O for west, for example). -->
+    <string name="compass_n">N</string>
+    <string name="compass_nne">NNE</string>
+    <string name="compass_ne">NE</string>
+    <string name="compass_ene">ENE</string>
+    <string name="compass_e">E</string>
+    <string name="compass_ese">ESE</string>
+    <string name="compass_se">SE</string>
+    <string name="compass_sse">SSE</string>
+    <string name="compass_s">S</string>
+    <string name="compass_ssw">SSW</string>
+    <string name="compass_sw">SW</string>
+    <string name="compass_wsw">WSW</string>
+    <string name="compass_w">W</string>
+    <string name="compass_wnw">WNW</string>
+    <string name="compass_nw">NW</string>
+    <string name="compass_nnw">NNW</string>
+
     <string name="world_watch_header">WORLD WEATHER WATCH</string>
     <string name="world_watch_alert_chip">%1$s ALERT</string>
 
@@ -124,7 +179,10 @@
     <string name="setting_add_location_desc">Type a town or city name</string>
     <string name="locations_searching">Searching\u2026</string>
     <string name="locations_no_match">No match for \"%1$s\"</string>
-    <string name="locations_pick_match">%1$d matches \u2014 open to choose</string>
+    <plurals name="locations_pick_match">
+        <item quantity="one">%1$d match \u2014 open to confirm</item>
+        <item quantity="other">%1$d matches \u2014 open to choose</item>
+    </plurals>
     <string name="locations_added">Added %1$s</string>
     <string name="locations_duplicate">%1$s is already saved</string>
     <string name="setting_locations_title">Saved locations</string>
@@ -254,7 +312,7 @@
     <string name="setting_demo_desc">Hide your location for screenshots and demos</string>
     <string name="setting_demo_label_title">Demo label</string>
     <string name="default_demo_label">Weather</string>
-    <string name="toast_demo_radar_warning">Radar still shows your area — the map itself identifies it</string>
+    <string name="toast_demo_radar_warning">The map still shows your area — the map itself identifies it</string>
 
     <string name="setting_report_title">Create debug report</string>
     <string name="setting_report_desc">Saves a redacted diagnostic file you can attach to an issue</string>
@@ -307,6 +365,8 @@
     <string name="background_radar">Live precipitation radar</string>
     <string name="background_pack">Community wallpaper pack</string>
     <string name="background_satellite">Satellite</string>
+    <string name="background_wind">Wind flow map</string>
+    <string name="wind_legend_title">Wind speed</string>
     <string name="toast_satellite_unavailable">No satellite coverage here \u2014 falling back to the default background. Coverage is the Americas, Atlantic and Pacific; there\'s a gap through the Middle East, China and Southeast Asia where no free source is available.</string>
 
     <string name="setting_pack_title">Wallpaper pack</string>
@@ -328,7 +388,7 @@
     <string name="setting_unsplash_title">Unsplash access key</string>
     <string name="unsplash_unset">Not set — required for stock photos</string>
 
-    <string name="setting_radar_area_title">Radar area</string>
+    <string name="setting_radar_area_title">Map area</string>
     <string name="radar_area_wide">Wide \u2014 several states</string>
     <string name="radar_area_regional">Regional \u2014 neighbouring states</string>
     <string name="radar_area_state">State \u2014 your state and around it</string>

@@ -49,6 +49,7 @@ object Backgrounds {
     const val SOURCE_STOCK = "stock"
     const val SOURCE_RADAR = "radar"
     const val SOURCE_SATELLITE = "satellite"
+    const val SOURCE_WIND = "wind"
 
     /** Folder the user drops images into. No runtime permission needed. */
     fun localFolder(context: Context): File =
@@ -78,6 +79,7 @@ object Backgrounds {
                 // default-radar render was misattributing the map. Fixed.
                 it to radarAttribution()
             }
+            SOURCE_WIND -> windMap(context, c, width, height, phase)?.let { it to windAttribution() }
             else -> null
         }
     } catch (e: Exception) {
@@ -394,6 +396,108 @@ object Backgrounds {
         return out
     }
 
+    /**
+     * Static wind-flow map: the bundled vector basemap with streaks following
+     * the wind drawn over it.
+     *
+     * The viewport maths deliberately mirrors radarMap so the two backgrounds
+     * line up — same area setting, same marker position, same room left for
+     * the readout — but is written out here rather than shared, to leave the
+     * working radar path untouched. Uses the bundled vectors only; a custom
+     * basemap URL applies to the radar map, not this one.
+     *
+     * Returns null if the wind data can't be fetched, in which case the
+     * renderer falls back to the illustrated scene rather than showing an
+     * empty map.
+     */
+    private fun windMap(
+        context: Context,
+        c: OpenMeteoClient.Conditions,
+        width: Int,
+        height: Int,
+        phase: ThemeResolver.Phase
+    ): Bitmap? {
+        val zoom = PreferencesManager.radarZoom.coerceIn(3, 7)
+        val lat = PreferencesManager.currentLatitude
+        val lon = PreferencesManager.currentLongitude
+
+        val tileSize = 256
+        val worldPx = (1 shl zoom) * tileSize.toDouble()
+        val cxWorld = (lon + 180.0) / 360.0 * worldPx
+        val latRad = Math.toRadians(lat)
+        val cyWorld = (1.0 - ln(tan(latRad) + 1.0 / Math.cos(latRad)) / PI) / 2.0 * worldPx
+
+        val scale = width / (3.0 * tileSize)
+        val viewW = width / scale
+        val viewH = height / scale
+        val fracX = 0.62
+        val fracY = 0.54
+        val left = cxWorld - viewW * fracX
+        val top = cyWorld - viewH * fracY
+        val viewport = WindFlowRenderer.Viewport(left, top, scale, worldPx)
+
+        // The grid covers the view plus a margin, so streaks near the edges
+        // interpolate between real points instead of running off the data.
+        val lonMin = viewport.lon(0f)
+        val lonMax = viewport.lon(width.toFloat())
+        val latMax = viewport.lat(0f)
+        val latMin = viewport.lat(height.toFloat())
+        val padLon = (lonMax - lonMin) * 0.10
+        val padLat = (latMax - latMin) * 0.10
+        val field = WindClient.fetch(
+            latMin - padLat, latMax + padLat, lonMin - padLon, lonMax + padLon
+        ) ?: return null
+
+        val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        canvas.drawColor(Color.parseColor("#0A1420"))
+        // If the vectors fail to load there's still water-coloured ground for
+        // the wind to flow over, which is better than nothing.
+        GeographyRenderer.draw(context, canvas, zoom, left, top, scale, width, height, phase)
+
+        val seed = (lat * 1000).toLong() * 31L + (lon * 1000).toLong() * 17L + zoom
+        WindFlowRenderer.draw(
+            canvas, field, viewport, width, height, seed, c.metric,
+            context.getString(R.string.wind_legend_title)
+        )
+
+        val vignette = Paint().apply {
+            shader = android.graphics.RadialGradient(
+                width / 2f, height / 2f, width * 0.72f,
+                intArrayOf(Color.TRANSPARENT, Color.argb(60, 0, 4, 10)),
+                floatArrayOf(0.5f, 1f),
+                Shader.TileMode.CLAMP
+            )
+        }
+        canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), vignette)
+
+        // Location marker, suppressed in demo mode just as on the radar map.
+        if (!PreferencesManager.demoMode) {
+            val mx = (width * fracX).toFloat()
+            val my = (height * fracY).toFloat()
+            val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
+            val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = Color.argb(120, 0, 0, 0)
+            }
+            val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 3f
+                color = Color.argb(110, 255, 255, 255)
+            }
+            canvas.drawCircle(mx, my, 11f, halo)
+            canvas.drawCircle(mx, my, 7f, dot)
+            canvas.drawCircle(mx, my, 19f, ring)
+            canvas.drawCircle(mx, my, 29f, Paint(ring).apply { alpha = 55 })
+        }
+
+        return out
+    }
+
+    /** Credit line for the wind map: Open-Meteo data over the bundled basemap. */
+    private fun windAttribution(): String =
+        "Wind: Open-Meteo \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)"
+
     /** Credit line: RainViewer always, plus whatever the basemap needs. */
     private fun radarAttribution(): String {
         val extra = PreferencesManager.basemapAttribution.trim()
@@ -415,6 +519,7 @@ object Backgrounds {
      */
     private var cachedBackground: Bitmap? = null
     private var cachedBackgroundKey: String? = null
+    private var cachedBackgroundAttribution: String? = null
     private var cachedBackgroundAt = 0L
     private const val BACKGROUND_TTL_MS = 9 * 60 * 1000L
 
@@ -438,7 +543,7 @@ object Backgrounds {
             PreferencesManager.currentLatitude, PreferencesManager.currentLongitude,
             PreferencesManager.radarZoom, PreferencesManager.labelDensity,
             PreferencesManager.safeRadarPalette, PreferencesManager.selectedPack,
-            OpenMeteoClient.bucket(c.weatherCode)
+            OpenMeteoClient.bucket(c.weatherCode), c.metric
         ).joinToString("|")
 
         val now = System.currentTimeMillis()
@@ -447,13 +552,17 @@ object Backgrounds {
             cachedBackgroundKey == key && now - cachedBackgroundAt < BACKGROUND_TTL_MS
         ) {
             // A copy, because callers recycle what they're given.
-            return cached.copy(Bitmap.Config.ARGB_8888, false) to null
+            // Attribution comes back with it. It used to be dropped here, so
+            // the on-screen credits showed only on the render that fetched,
+            // not on the reuses that followed.
+            return cached.copy(Bitmap.Config.ARGB_8888, false) to cachedBackgroundAttribution
         }
 
         val fresh = resolve(context, source, c, width, height, phase) ?: return null
         cachedBackground?.recycle()
         cachedBackground = fresh.first.copy(Bitmap.Config.ARGB_8888, false)
         cachedBackgroundKey = key
+        cachedBackgroundAttribution = fresh.second
         cachedBackgroundAt = now
         return fresh
     }
@@ -462,6 +571,7 @@ object Backgrounds {
         cachedBackground?.recycle()
         cachedBackground = null
         cachedBackgroundKey = null
+        cachedBackgroundAttribution = null
     }
 
     /** Video extensions accepted from the local folder and from packs. */
