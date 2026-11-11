@@ -1,0 +1,364 @@
+<resources>
+    <string name="plugin_name">Papel de parede meteorológico</string>
+    <string name="plugin_description">Exibe as condições do tempo atuais e as temperaturas máximas/mínimas de hoje como papel de parede do launcher. Dados por Open-Meteo.</string>
+
+    <string name="plugin_uuid">3b60f77e-c483-4af4-b4ea-493f1571e47d</string>
+    
+    <string name="projectivy_not_installed">Aviso: este plugin requer o Projectivy Launcher, que parece não estar instalado.</string>
+    
+    <string name="settings">Configurações</string>
+    
+    <string name="category_location">Localização</string>
+    <string name="category_location_desc">Local da previsão, lugares salvos e unidades</string>
+    <string name="category_appearance">Aparência</string>
+    <string name="category_appearance_desc">Plano de fundo, radar, pacotes, estilo do mapa e cores</string>
+    <string name="category_weather">Informações meteorológicas</string>
+    <string name="category_weather_desc">Painéis exibidos: previsão, alertas, qualidade do ar e mais</string>
+    <string name="category_clock">Relógio</string>
+    <string name="category_clock_desc">Exibir um relógio e escolher sua aparência</string>
+    <string name="category_screen">Tela e layout</string>
+    <string name="category_screen_desc">Redução de burn-in, ajuste à linha de apps e comportamento em inatividade</string>
+    <string name="category_experimental">Experimental</string>
+    <string name="category_experimental_desc">Opções de animação não comprovadas, desativadas por padrão</string>
+    <string name="category_demo">Modo de demonstração</string>
+    <string name="category_demo_desc">Oculte sua localização em capturas de tela</string>
+    <string name="category_housekeeping">Manutenção</string>
+    <string name="category_housekeeping_desc">Atualização, atualizações do app e relatório de depuração</string>
+    
+    <string name="detail_feels_like">Sensação de %1$d\u00B0</string>
+    <string name="detail_high_low">Máx. %1$d\u00B0  Mín. %2$d\u00B0</string>
+    <string name="detail_wind">Vento %1$d</string>
+    <string name="detail_wind_dir">Vento %1$d %2$s</string>
+    <string name="yesterday_warmer">%1$d\u00B0 mais quente que ontem</string>
+    <string name="yesterday_cooler">%1$d\u00B0 mais frio que ontem</string>
+    <string name="stat_humidity">Umidade %1$d%%</string>
+    <string name="stat_uv">UV %1$d</string>
+    <string name="stat_dew">Orvalho %1$d\u00B0</string>
+    <string name="stat_visibility">Visibilidade %1$s</string>
+    <string name="sun_sunrise">Nascer do sol %1$s</string>
+    <string name="sun_sunset">Pôr do sol %1$s</string>
+    <string name="sun_daylight_left_hm">Restam %1$dh %2$dm de luz do dia</string>
+    <string name="sun_daylight_left_m">Restam %1$dm de luz do dia</string>
+    <string name="update_available_notice">Atualização disponível \u00B7 v%1$s</string>
+    <string name="last_updated_label">Atualizado %1$s</string>
+
+    <string name="nowcast_rain_shortly">Chuva começando em breve</string>
+    <string name="nowcast_snow_shortly">Neve começando em breve</string>
+    <string name="nowcast_rain_in">Chuva começando em cerca de %1$d min</string>
+    <string name="nowcast_snow_in">Neve começando em cerca de %1$d min</string>
+    <string name="nowcast_easing_shortly">A precipitação deve diminuir em breve</string>
+    <string name="nowcast_rain_easing_in">Chuva diminuindo em cerca de %1$d min</string>
+    <string name="nowcast_snow_easing_in">Neve diminuindo em cerca de %1$d min</string>
+    <string name="nowcast_rain_continuing">Chuva continuando</string>
+    <string name="nowcast_snow_continuing">Neve continuando</string>
+
+
+    <string name="compass_n">N</string>
+    <string name="compass_nne">NNE</string>
+    <string name="compass_ne">NE</string>
+    <string name="compass_ene">ENE</string>
+    <string name="compass_e">L</string>
+    <string name="compass_ese">ESE</string>
+    <string name="compass_se">SE</string>
+    <string name="compass_sse">SSE</string>
+    <string name="compass_s">S</string>
+    <string name="compass_ssw">SSO</string>
+    <string name="compass_sw">SO</string>
+    <string name="compass_wsw">OSO</string>
+    <string name="compass_w">O</string>
+    <string name="compass_wnw">ONO</string>
+    <string name="compass_nw">NO</string>
+    <string name="compass_nnw">NNO</string>
+
+
+    <string name="world_watch_header">ALERTA METEOROLÓGICO MUNDIAL</string>
+    <string name="world_watch_alert_chip">ALERTA %1$s</string>
+
+    <string name="aqi_good">Boa</string>
+    <string name="aqi_moderate">Moderada</string>
+    <string name="aqi_unhealthy_sensitive">Prejudicial para grupos sensíveis</string>
+    <string name="aqi_unhealthy">Prejudicial</string>
+    <string name="aqi_very_unhealthy">Muito prejudicial</string>
+    <string name="aqi_hazardous">Perigosa</string>
+    <string name="aqi_alert_line">Qualidade do ar %1$s \u00B7 AQI %2$d</string>
+    <string name="pollen_very_high">muito alto</string>
+    <string name="pollen_high">alto</string>
+    <string name="pollen_moderate">moderado</string>
+    <string name="pollen_line">Pólen de %1$s %2$s</string>
+    <string name="pollen_alder">Amieiro</string>
+    <string name="pollen_birch">Bétula</string>
+    <string name="pollen_grass">Gramíneas</string>
+    <string name="pollen_mugwort">Artemísia</string>
+    <string name="pollen_olive">Oliveira</string>
+    <string name="pollen_ragweed">Ambrósia</string>
+
+    <string name="aurora_likely">Aurora provável esta noite \u00B7 Kp %1$s</string>
+    <string name="aurora_possible">Aurora possível esta noite \u00B7 Kp %1$s</string>
+    <string name="aurora_possible_far_north">Aurora possível no extremo norte \u00B7 Kp %1$s</string>
+    <string name="marine_waves">Ondas %1$s, %2$s</string>
+
+    <string name="adv_ice">Possibilidade de gelo \u2014 cuidado nas estradas</string>
+    <string name="adv_hard_freeze">Geada forte esta noite</string>
+    <string name="adv_frost">Possibilidade de geada esta noite</string>
+    <string name="adv_uv_very_high">UV muito alto hoje \u00B7 índice %1$d</string>
+    <string name="adv_uv_high">UV alto hoje \u00B7 índice %1$d</string>
+    <string name="adv_very_windy">Vento muito forte \u00B7 %1$s</string>
+    <string name="adv_windy">Dia com muito vento</string>
+    <string name="adv_oppressive">Sensação abafada \u2014 mantenha-se hidratado</string>
+    <string name="adv_bitter_cold">Frio intenso \u2014 proteja a pele exposta</string>
+    <string name="adv_dry_until">Tempo seco até cerca de %1$s</string>
+    <string name="adv_drying_day">Bom dia para secar roupas</string>
+    <string name="adv_muggy">Abafado</string>
+    <string name="adv_humid">Úmido</string>
+
+    <string name="wx_clear">Céu limpo</string>
+    <string name="wx_mainly_clear">Predominantemente limpo</string>
+    <string name="wx_partly_cloudy">Parcialmente nublado</string>
+    <string name="wx_overcast">Encoberto</string>
+    <string name="wx_fog">Nevoeiro</string>
+    <string name="wx_drizzle">Garoa</string>
+    <string name="wx_freezing_drizzle">Garoa congelante</string>
+    <string name="wx_rain">Chuva</string>
+    <string name="wx_freezing_rain">Chuva congelante</string>
+    <string name="wx_snow">Neve</string>
+    <string name="wx_snow_grains">Grãos de neve</string>
+    <string name="wx_rain_showers">Pancadas de chuva</string>
+    <string name="wx_snow_showers">Pancadas de neve</string>
+    <string name="wx_thunderstorm">Tempestade</string>
+    <string name="wx_thunderstorm_hail">Tempestade com granizo</string>
+
+    <string name="setting_latitude_title">Latitude</string>
+    <string name="setting_longitude_title">Longitude</string>
+    <string name="setting_place_title">Nome do local</string>
+    <string name="setting_add_location_title">Adicionar outro local</string>
+    <string name="setting_add_location_desc">Digite uma cidade para adicionar ao rodízio</string>
+    <string name="setting_find_location_title">Encontrar meu local</string>
+    <string name="setting_find_location_desc">Digite sua cidade para usá-la como localização</string>
+    <string name="locations_searching">Pesquisando\u2026</string>
+    <string name="locations_no_match">Nenhum resultado para \"%1$s\"</string>
+    <plurals name="locations_pick_match">
+        <item quantity="one">%1$d resultado \u2014 abra para confirmar</item>
+        <item quantity="other">%1$d resultados \u2014 abra para escolher</item>
+    </plurals>
+    <string name="locations_added">%1$s adicionado</string>
+    <string name="locations_duplicate">%1$s já está salvo</string>
+    <string name="setting_locations_title">Locais salvos</string>
+    <string name="locations_none">Nenhum \u2014 somente seu local principal</string>
+    <string name="locations_count">%1$d local(is) adicional(is)</string>
+    <string name="locations_row_hint">Local salvo \u2014 selecione para ver opções</string>
+    <string name="locations_use">Usar como meu local</string>
+    <string name="locations_remove">Remover</string>
+    <string name="locations_set">Local definido como %1$s</string>
+    <string name="locations_removed">%1$s removido</string>
+    <string name="setting_cycle_title">Alternar entre locais</string>
+    <string name="cycle_off">Desativado \u2014 somente o local principal</string>
+    <string name="cycle_alternate">Devagar \u2014 aproximadamente a cada meia hora</string>
+    <string name="cycle_every">A cada atualização \u2014 aproximadamente a cada 15 minutos</string>
+
+    <string name="setting_units_title">Usar unidades métricas</string>
+    <string name="setting_burn_in_title">Reduzir burn-in da tela</string>
+    <string name="setting_burn_in_desc">Desloca o painel e o relógio alguns pixels de vez em quando. Ativado por padrão \u2014 ajuda em telas OLED e plasma e é imperceptível nas demais.</string>
+    
+    <string name="setting_nowcast_title">Previsão de chuva e neve iminentes</string>
+    <string name="setting_nowcast_desc">Exibe \"começando em 25 min\" quando a precipitação está próxima</string>
+    
+    <string name="setting_advisories_title">Avisos úteis</string>
+    <string name="setting_advisories_desc">Mensagens como \"possibilidade de geada esta noite\", \"tempo seco até 16h\" ou \"bom dia para secar roupa\"</string>
+    <string name="setting_yesterday_title">Comparar com ontem</string>
+    <string name="setting_yesterday_desc">Mostra quanto hoje está mais quente ou frio</string>
+    <string name="setting_air_title">Qualidade do ar e pólen</string>
+    <string name="setting_air_desc">Adiciona o AQI à linha de estatísticas e um aviso quando a qualidade do ar estiver ruim. Pólen quando disponível.</string>
+    <string name="setting_marine_title">Condições marítimas</string>
+    <string name="setting_marine_desc">Altura e período das ondas, quando houver uma grande massa de água por perto \u2014 oceano ou um dos Grandes Lagos</string>
+    <string name="setting_last_updated_title">Exibir horário da última atualização</string>
+    <string name="setting_last_updated_desc">Uma linha pequena \"Atualizado H:MM\" que mostra quando a imagem na tela foi renderizada, no horário local</string>
+    <string name="setting_aurora_title">Monitoramento de aurora</string>
+    <string name="setting_aurora_desc">Exibe uma linha quando o índice K torna a aurora possível na sua latitude</string>
+    <string name="setting_safe_radar_title">Radar acessível para daltônicos</string>
+    <string name="setting_safe_radar_desc">Muda as cores do radar para diferenciar chuva forte de chuva fraca</string>
+
+    <string name="setting_alerts_title">Alertas de tempo severo</string>
+    <string name="setting_alerts_desc">Faixa com alertas ativos do NWS (somente EUA)</string>
+    <string name="setting_experimental_title">Recursos experimentais</string>
+    <string name="setting_experimental_desc">Mostra opções de animação. Elas criam um vídeo curto, o que pode impedir o início da proteção de tela enquanto estiver ativo \u2014 isso foi confirmado em pelo menos um dispositivo. Se algo falhar, tudo volta a um papel de parede estático.</string>
+    
+    <string name="setting_precip_title">Animar chuva e neve</string>
+    <string name="setting_precip_desc">Exibe chuva ou neve caindo sobre o plano de fundo quando houver precipitação. Cria um vídeo curto \u2014 pode impedir o início da proteção de tela.</string>
+    <string name="setting_animate_title">Animar radar</string>
+    <string name="setting_animate_wind_title">Animar vento</string>
+    <string name="setting_animate_wind_desc">Move os traços ao longo do fluxo no plano de fundo do mapa de vento. Cria um vídeo curto, que leva alguns segundos para ficar pronto \u2014 pode impedir o início da proteção de tela.</string>
+    <string name="setting_wind_precip_title">Chuva e neve no mapa de vento</string>
+    <string name="setting_wind_precip_desc">Sobrepõe o radar mais recente aos traços de vento. Imagem estática, sem vídeo. Aplicável ao plano de fundo do mapa de vento.</string>
+    <string name="setting_animate_desc">Repete as últimas duas horas de precipitação sobre o radar ao vivo ou o mapa de vento. Cria um vídeo curto, que leva alguns segundos para ficar pronto \u2014 pode impedir o início da proteção de tela.</string>
+    <string name="toast_animate_needs_radar">Defina o plano de fundo como Radar ao vivo ou Mapa de vento para ver isso</string>
+    <string name="toast_needs_wind_background">Defina o plano de fundo como Mapa de vento para ver isso</string>
+    
+    <string name="setting_hourly_title">Exibir previsão por hora</string>
+    <string name="setting_hourly_desc">Próximas 6 horas com temperatura e chance de chuva</string>
+    <string name="setting_daily_title">Exibir previsão diária</string>
+    <string name="setting_daily_desc">Próximos 5 dias com máximas e mínimas</string>
+    <string name="setting_stats_title">Exibir estatísticas adicionais</string>
+    <string name="setting_stats_desc">Umidade, UV, ponto de orvalho, visibilidade e pressão</string>
+    <string name="setting_sun_title">Exibir horários do sol</string>
+    <string name="setting_sun_desc">Nascer e pôr do sol e luz do dia restante</string>
+
+    <string name="setting_world_title">Monitoramento meteorológico mundial</string>
+    <string name="world_off">Desativado \u2014 somente o clima local</string>
+    <string name="world_occasional">Ocasionalmente \u2014 aproximadamente a cada hora</string>
+    <string name="world_frequent">Frequentemente \u2014 aproximadamente a cada meia hora</string>
+
+    <string name="setting_theme_title">Tema diurno/noturno</string>
+    <string name="theme_auto">Automático \u2014 acompanha o nascer e o pôr do sol</string>
+    <string name="theme_day">Sempre claro</string>
+    <string name="theme_night">Sempre escuro</string>
+
+    <string name="setting_labels_title">Nomes de lugares no radar</string>
+    <string name="labels_off">Nenhum</string>
+    <string name="labels_few">Poucos \u2014 somente cidades principais</string>
+    <string name="labels_balanced">Equilibrado</string>
+    <string name="labels_many">Muitos \u2014 inclui cidades menores</string>
+
+    <string name="setting_basemap_title">URL personalizada dos blocos do mapa-base</string>
+    <string name="basemap_unset">Mapa integrado (litorais e fronteiras)</string>
+    <string name="setting_basemap_attr_title">Crédito do mapa-base</string>
+    <string name="basemap_attr_unset">Não definido</string>
+    <string name="toast_osm_not_permitted">A política de blocos do OpenStreetMap não permite o uso por apps \u2014 as solicitações serão bloqueadas</string>
+
+    <string name="setting_clock_title">Exibir relógio</string>
+    <string name="setting_clock_desc">Desenha o horário no papel de parede. A imagem é atualizada a cada minuto para manter a precisão, o que pode interferir no início da proteção de tela.</string>
+    <string name="setting_clock_position_title">Posição do relógio</string>
+    <string name="clock_pos_top_right">Canto superior direito</string>
+    <string name="clock_pos_top_centre">Centro superior</string>
+    <string name="clock_pos_with_panel">Acima do nome do local</string>
+
+    <string name="setting_clock_size_title">Tamanho do relógio</string>
+    <string name="clock_size_small">Pequeno</string>
+    <string name="clock_size_medium">Médio</string>
+    <string name="clock_size_large">Grande \u2014 mais fácil de ver de longe</string>
+
+    <string name="setting_clock_style_title">Estilo do relógio</string>
+    <string name="clock_style_light">Digital, fino</string>
+    <string name="clock_style_bold">Digital, negrito</string>
+    <string name="clock_style_analogue">Analógico \u2014 combina melhor com o tamanho grande</string>
+
+    <string name="setting_clock_hours_title">Formato da hora</string>
+    <string name="clock_hours_system">Seguir o sistema</string>
+    <string name="clock_hours_12">12 horas</string>
+    <string name="clock_hours_24">24 horas</string>
+
+    <string name="setting_clock_date_title">Exibir a data sob o relógio</string>
+    <string name="setting_clock_date_desc">Adiciona o dia da semana e a data</string>
+    <string name="toast_clock_hint">Desative o relógio do próprio Projectivy em Aparência para não ver dois</string>
+
+    <string name="setting_safe_area_title">Posição inicial da linha de apps</string>
+    <string name="setting_safe_area_desc">%1$d%% da altura da tela</string>
+    <string name="safe_area_option">%1$d%%</string>
+    <string name="safe_area_hint_tall">Para linhas de apps altas ou duplicadas</string>
+    <string name="safe_area_hint_default">Corresponde ao layout padrão do Projectivy</string>
+    <string name="safe_area_hint_short">Para uma linha de apps compacta ou oculta</string>
+
+    <string name="setting_idle_full_title">Usar a tela inteira quando ocioso</string>
+    <string name="setting_idle_full_desc">Quando o launcher ficar ocioso, nada cobrirá o papel de parede e a previsão poderá usar todo o espaço</string>
+
+    <string name="setting_scale_title">Tamanho das informações</string>
+    <string name="setting_scale_desc">%1$d%%</string>
+    <string name="scale_option">%1$d%%</string>
+    <string name="scale_hint_small">Mais espaço para o plano de fundo</string>
+    <string name="scale_hint_default">Padrão</string>
+    <string name="scale_hint_large">Pode ocultar as faixas de previsão</string>
+
+    <string name="setting_holiday_title">Temas de feriados</string>
+    <string name="holiday_off">Desativado</string>
+    <string name="holiday_none">Ativado \u2014 nenhum feriado próximo</string>
+    <string name="holiday_active">Ativado \u2014 %1$s</string>
+
+    <string name="setting_demo_title">Modo de demonstração</string>
+    <string name="setting_demo_desc">Oculte sua localização em capturas de tela e demonstrações</string>
+    <string name="setting_demo_label_title">Rótulo da demonstração</string>
+    <string name="default_demo_label">Clima</string>
+    <string name="toast_demo_radar_warning">O mapa ainda mostra sua região \u2014 o próprio mapa revela sua localização</string>
+
+    <string name="setting_report_title">Criar relatório de depuração</string>
+    <string name="setting_report_desc">Salva um arquivo de diagnóstico com dados sensíveis removidos para anexar a um problema</string>
+    <string name="setting_support_title">Apoie este projeto</string>
+    <string name="setting_support_desc">Um código QR e um link, caso queira agradecer</string>
+    <string name="support_screen_desc">Leia com seu celular ou acesse %1$s</string>
+    <string name="done">Concluído</string>
+    <string name="report_working">Coletando\u2026</string>
+    <string name="report_failed">Não foi possível gravar o relatório</string>
+    <string name="report_written">Salvo em Android/data/\u2026/files/%1$s/weather-plugin-report.txt</string>
+    <string name="report_share_title">Compartilhar relatório de depuração</string>
+    <string name="report_no_share_target">Nenhum app de compartilhamento disponível \u2014 copie o arquivo por adb</string>
+
+    <string name="setting_update_interval_title">Procurar atualizações</string>
+    <string name="update_interval_never">Nunca \u2014 somente quando eu solicitar</string>
+    <string name="update_interval_weekly">Semanalmente</string>
+    <string name="update_interval_fortnightly">A cada duas semanas</string>
+    <string name="update_interval_monthly">Mensalmente</string>
+    <string name="setting_update_pending">v%1$s está disponível</string>
+
+    <string name="setting_update_title">Verificar atualizações</string>
+    <string name="setting_update_desc">Instalada: v%1$s</string>
+    <string name="update_checking">Verificando o GitHub\u2026</string>
+    <string name="update_check_failed">Não foi possível acessar o GitHub</string>
+    <string name="update_up_to_date">v%1$s é a versão mais recente</string>
+    <string name="update_downloading">Baixando v%1$s\u2026</string>
+    <string name="update_download_failed">Falha no download</string>
+    <string name="update_ready">v%1$s pronta \u2014 confirme a instalação</string>
+    <string name="update_install_failed">Não foi possível iniciar a instalação \u2014 tente instalar manualmente</string>
+    <string name="update_needs_permission">É necessária permissão para instalar apps</string>
+    <string name="update_grant_then_retry">Permita que este app instale apps desconhecidos e selecione Verificar atualizações novamente</string>
+    <string name="update_grant_manually">Permita \"instalar apps desconhecidos\" para este plugin nas configurações de segurança da TV e tente novamente</string>
+
+    <string name="setting_refresh_title">Atualizar agora</string>
+    <string name="setting_refresh_desc">Buscar as condições atuais e redesenhar</string>
+
+    <string name="units_metric">Celsius, km/h</string>
+    <string name="units_imperial">Fahrenheit, mph</string>
+    <string name="default_place_label">Clima local</string>
+
+    <string name="toast_refresh_requested">Atualização solicitada</string>
+    <string name="toast_bad_latitude">A latitude deve estar entre -90 e 90</string>
+    <string name="toast_bad_longitude">A longitude deve estar entre -180 e 180</string>
+
+    <string name="setting_background_title">Plano de fundo</string>
+    <string name="background_scene">Cena meteorológica ilustrada (offline)</string>
+    <string name="background_gradient">Degradê de cor simples (offline)</string>
+    <string name="background_local">Suas fotos neste dispositivo</string>
+    <string name="background_stock">Fotos de banco de imagens (Unsplash)</string>
+    <string name="background_radar">Radar de precipitação ao vivo</string>
+    <string name="background_pack">Pacote de papéis de parede da comunidade</string>
+    <string name="background_satellite">Satélite</string>
+    <string name="background_wind">Mapa de fluxo do vento</string>
+    <string name="wind_legend_title">Velocidade do vento</string>
+    <string name="toast_satellite_unavailable">Não há cobertura de satélite aqui \u2014 usando o plano de fundo padrão. A cobertura inclui as Américas, o Atlântico e o Pacífico; há uma lacuna no Oriente Médio, na China e no Sudeste Asiático, onde não existe fonte gratuita.</string>
+    
+    <string name="setting_pack_title">Pacote de papéis de parede</string>
+    <string name="setting_pack_refresh_title">Atualizar lista de pacotes</string>
+    <string name="setting_pack_refresh_desc">Procurar novos pacotes da comunidade</string>
+    <string name="pack_none_selected">Nenhum selecionado</string>
+    <string name="pack_none_available">Ainda não há pacotes \u2014 atualize a lista</string>
+    <string name="pack_unknown">Indisponível (%1$s)</string>
+    <string name="pack_kind_static">Imagens estáticas</string>
+    <string name="pack_kind_lottie">Animado \u2014 sem informações meteorológicas</string>
+    <string name="pack_kind_video">Vídeo \u2014 sem informações meteorológicas</string>
+
+    <string name="toast_pick_a_pack">Escolha um pacote de papéis de parede abaixo</string>
+    <string name="toast_pack_refreshing">Procurando pacotes…</string>
+    <string name="toast_pack_refreshed">Lista de pacotes atualizada</string>
+    <string name="toast_pack_refresh_failed">Não foi possível acessar a lista de pacotes</string>
+    <string name="toast_video_no_overlay">Pacotes animados não podem exibir as informações meteorológicas</string>
+
+    <string name="setting_unsplash_title">Chave de acesso do Unsplash</string>
+    <string name="unsplash_unset">Não definida \u2014 necessária para fotos de banco de imagens</string>
+
+    <string name="setting_radar_area_title">Área do mapa</string>
+    <string name="radar_area_wide">Ampla \u2014 vários estados</string>
+    <string name="radar_area_regional">Regional \u2014 estados vizinhos</string>
+    <string name="radar_area_state">Estado \u2014 seu estado e arredores</string>
+    <string name="radar_area_local">Local \u2014 sua região metropolitana</string>
+    
+    <string name="toast_local_folder">Coloque imagens ou vídeos em: %1$s</string>
+    <string name="toast_local_video_note">Vídeos são reproduzidos sem as informações meteorológicas</string>
+    <string name="toast_needs_unsplash_key">Adicione uma chave de acesso do Unsplash para usar fotos de banco de imagens</string>
+</resources>
