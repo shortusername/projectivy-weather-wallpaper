@@ -175,8 +175,10 @@
     <string name="setting_latitude_title">Latitude</string>
     <string name="setting_longitude_title">Longitude</string>
     <string name="setting_place_title">Location name</string>
-    <string name="setting_add_location_title">Add a location</string>
-    <string name="setting_add_location_desc">Type a town or city name</string>
+    <string name="setting_add_location_title">Add another location</string>
+    <string name="setting_add_location_desc">Type a town or city to add to the rotation</string>
+    <string name="setting_find_location_title">Find my location</string>
+    <string name="setting_find_location_desc">Type your town or city to use it as your location</string>
     <string name="locations_searching">Searching\u2026</string>
     <string name="locations_no_match">No match for \"%1$s\"</string>
     <plurals name="locations_pick_match">
@@ -188,7 +190,10 @@
     <string name="setting_locations_title">Saved locations</string>
     <string name="locations_none">None \u2014 only your primary location</string>
     <string name="locations_count">%1$d extra location(s)</string>
-    <string name="locations_remove_hint">Select to remove</string>
+    <string name="locations_row_hint">Saved location \u2014 select for options</string>
+    <string name="locations_use">Use as my location</string>
+    <string name="locations_remove">Remove</string>
+    <string name="locations_set">Location set to %1$s</string>
     <string name="locations_removed">Removed %1$s</string>
     <string name="setting_cycle_title">Cycle between locations</string>
     <string name="cycle_off">Off \u2014 primary location only</string>
@@ -226,8 +231,13 @@
     <string name="setting_precip_title">Animate rain and snow</string>
     <string name="setting_precip_desc">Falling rain or snow over the background when it\'s wet out. Encodes a short video \u2014 may stop your screensaver starting while this is showing.</string>
     <string name="setting_animate_title">Animate radar</string>
-    <string name="setting_animate_desc">Loops the last two hours of precipitation. Encodes a short video, so it takes a few seconds to build \u2014 may stop your screensaver starting while this is showing.</string>
-    <string name="toast_animate_needs_radar">Set the background to Live radar to see this</string>
+    <string name="setting_animate_wind_title">Animate wind</string>
+    <string name="setting_animate_wind_desc">Moves the streaks along the flow on the Wind flow map background. Encodes a short video, so it takes a few seconds to build \u2014 may stop your screensaver starting while this is showing.</string>
+    <string name="setting_wind_precip_title">Rain and snow on wind map</string>
+    <string name="setting_wind_precip_desc">Draws the latest radar over the wind streaks. A still image, no video. Applies to the Wind flow map background.</string>
+    <string name="setting_animate_desc">Loops the last two hours of precipitation, over the Live radar or Wind flow map background. Encodes a short video, so it takes a few seconds to build \u2014 may stop your screensaver starting while this is showing.</string>
+    <string name="toast_animate_needs_radar">Set the background to Live radar or Wind flow map to see this</string>
+    <string name="toast_needs_wind_background">Set the background to Wind flow map to see this</string>
 
     <string name="setting_hourly_title">Show hourly forecast</string>
     <string name="setting_hourly_desc">Next 6 hours with temperature and rain chance</string>

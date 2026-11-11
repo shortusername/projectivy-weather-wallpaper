@@ -35,6 +35,9 @@ object PreferencesManager {
     const val KEY_LABEL_DENSITY = "labelDensity"
     const val KEY_SHOW_ALERTS = "showAlerts"
     const val KEY_ANIMATE_RADAR = "animateRadar"
+    const val KEY_ANIMATE_WIND = "animateWind"
+    const val KEY_WIND_PRECIP = "windPrecipitation"
+    const val KEY_LOCATION_SWITCHED_AT = "locationSwitchedAt"
     const val KEY_THEME_MODE = "themeMode"
     const val KEY_WORLD_WATCH = "worldWatch"
     const val KEY_WORLD_CURSOR = "worldCursor"
@@ -545,6 +548,33 @@ object PreferencesManager {
         get() = experimentalFeatures && prefs.getBoolean(KEY_ANIMATE_RADAR, false)
         set(v) = prefs.edit().putBoolean(KEY_ANIMATE_RADAR, v).apply()
 
+    /**
+     * Move the streaks on the wind flow map. Gated like the other animation
+     * options, because it's a video: it can stop the screensaver starting, and
+     * some budget decoders can't play it.
+     */
+    var animateWind: Boolean
+        get() = experimentalFeatures && prefs.getBoolean(KEY_ANIMATE_WIND, false)
+        set(v) = prefs.edit().putBoolean(KEY_ANIMATE_WIND, v).apply()
+    val animateWindStored: Boolean get() = prefs.getBoolean(KEY_ANIMATE_WIND, false)
+
+    /**
+     * Draw the latest radar over the wind flow map. Not gated: it's a still
+     * image like the rest of the map, no video involved.
+     */
+    var windPrecipitation: Boolean
+        get() = prefs.getBoolean(KEY_WIND_PRECIP, false)
+        set(v) = prefs.edit().putBoolean(KEY_WIND_PRECIP, v).apply()
+
+    /**
+     * When the rotation last moved to a new location. Persisted so a restart of
+     * the service doesn't restart the clock on how long a place has been shown.
+     * Not part of the exported settings: it's state, not a preference.
+     */
+    var locationSwitchedAt: Long
+        get() = prefs.getLong(KEY_LOCATION_SWITCHED_AT, 0L)
+        set(v) = prefs.edit().putLong(KEY_LOCATION_SWITCHED_AT, v).apply()
+
     const val LABELS_OFF = "off"
     const val LABELS_FEW = "few"
     const val LABELS_BALANCED = "balanced"
@@ -613,6 +643,8 @@ object PreferencesManager {
         put(KEY_LABEL_DENSITY, labelDensity)
         put(KEY_SHOW_ALERTS, showAlerts)
         put(KEY_ANIMATE_RADAR, animateRadar)
+        put(KEY_ANIMATE_WIND, animateWindStored)
+        put(KEY_WIND_PRECIP, windPrecipitation)
         put(KEY_THEME_MODE, themeMode)
         put(KEY_WORLD_WATCH, worldWatch)
         put(KEY_CYCLE_MODE, cycleMode)
@@ -665,6 +697,8 @@ object PreferencesManager {
             if (json.has(KEY_LABEL_DENSITY)) labelDensity = json.getString(KEY_LABEL_DENSITY)
             if (json.has(KEY_SHOW_ALERTS)) showAlerts = json.getBoolean(KEY_SHOW_ALERTS)
             if (json.has(KEY_ANIMATE_RADAR)) animateRadar = json.getBoolean(KEY_ANIMATE_RADAR)
+            if (json.has(KEY_ANIMATE_WIND)) animateWind = json.getBoolean(KEY_ANIMATE_WIND)
+            if (json.has(KEY_WIND_PRECIP)) windPrecipitation = json.getBoolean(KEY_WIND_PRECIP)
             if (json.has(KEY_THEME_MODE)) themeMode = json.getString(KEY_THEME_MODE)
             if (json.has(KEY_WORLD_WATCH)) worldWatch = json.getString(KEY_WORLD_WATCH)
             if (json.has(KEY_CYCLE_MODE)) cycleMode = json.getString(KEY_CYCLE_MODE)

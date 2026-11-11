@@ -32,6 +32,17 @@ class WallpaperProviderService : Service() {
         // Now that every frame is used rather than every other one, this
         // covers the same span with about double the temporal resolution.
         private const val RADAR_FRAME_COUNT = 13
+
+        // How long an encoded animation is reused before it's rebuilt. RainViewer
+        // publishes a new frame about every ten minutes, so a loop older than
+        // this is showing yesterday's weather.
+        private const val VIDEO_REFRESH_MS = 15 * 60 * 1000L
+
+        // Moving wind: 48 frames at 12 per second is a four-second loop. The
+        // encoder's default of 8 fps is fine for radar, which advances in
+        // discrete steps, but looks choppy for streaks that glide.
+        private const val WIND_LOOP_FRAMES = 48
+        private const val WIND_FPS = 12
         /** World event list is re-fetched no more often than this. */
         private const val WORLD_INTERVAL_MS = 30 * 60 * 1000L
     }
@@ -59,6 +70,9 @@ class WallpaperProviderService : Service() {
     private var lastMarineAt = 0L
     private var cachedMarine: MarineClient.Conditions? = null
     private var yesterdayHigh: Double? = null
+
+    /** Which coordinates everything cached above was fetched for. */
+    private var cacheLocationKey: String? = null
     private var yesterdayFetchedForDay = -1
     private var lastWorldAt = 0L
     private var cachedEvents: List<WorldEventsClient.Event> = emptyList()
@@ -194,18 +208,24 @@ class WallpaperProviderService : Service() {
                 return emptyList()
             }
 
-            val conditions = currentConditions() ?: return emptyList()
-
             // One counter for the whole refresh, incremented here rather than
             // inside either feature: previously the world-watch path owned it
-            // and returned early when disabled, so it never advanced and
-            // location cycling lost its sense of time.
+            // and returned early when disabled, so it never advanced.
             val refreshIndex = PreferencesManager.refreshCount + 1
             PreferencesManager.refreshCount = refreshIndex
 
-            // Pick which saved location this refresh renders, before anything
-            // fetches or draws.
-            selectActiveLocation(refreshIndex)
+            // Pick which saved location this refresh renders BEFORE anything
+            // fetches or draws, and drop anything cached for a different place.
+            //
+            // This used to happen after the weather was fetched, so the data
+            // belonged to the previous location while the label and everything
+            // else belonged to the new one: every place in the rotation showed
+            // the weather of the one before it. Rio de Janeiro wearing Montreal's
+            // November temperature is what that looks like.
+            selectActiveLocation()
+            dropCachesIfLocationChanged()
+
+            val conditions = currentConditions() ?: return emptyList()
 
             // Scheduled update check. Fires on a worker thread and only records
             // what it found, so it never delays this call.
@@ -227,6 +247,10 @@ class WallpaperProviderService : Service() {
 
                 // Animated radar: same constraint, solved by embedding the frames.
                 animatedRadar(conditions)?.let { return listOf(it) }
+
+                // Same idea for the wind flow map, whose streaks and
+                // precipitation can each move independently.
+                animatedWind(conditions)?.let { return listOf(it) }
 
                 // World weather watch takes over the whole frame when it's this
                 // refresh's turn, so it's resolved before the local render.
@@ -382,7 +406,7 @@ class WallpaperProviderService : Service() {
             PreferencesManager.showStats, PreferencesManager.showSun,
             PreferencesManager.showNowcast, PreferencesManager.showAdvisories,
             PreferencesManager.showAirQuality, PreferencesManager.showAurora,
-            PreferencesManager.showMarine,
+            PreferencesManager.showMarine, PreferencesManager.windPrecipitation,
             PreferencesManager.showYesterday, PreferencesManager.showClock,
             PreferencesManager.clockPosition, PreferencesManager.clockSize,
             PreferencesManager.clockStyle, PreferencesManager.clockHours,
@@ -421,7 +445,7 @@ class WallpaperProviderService : Service() {
      * published on PreferencesManager so the renderers pick it up without every
      * drawing call taking a location argument.
      */
-    private fun selectActiveLocation(refreshIndex: Int) {
+    private fun selectActiveLocation() {
         val rotation = PreferencesManager.locationRotation
         val mode = PreferencesManager.cycleMode
 
@@ -432,23 +456,32 @@ class WallpaperProviderService : Service() {
             return
         }
 
-        // Alternate mode holds each location for two refreshes, so a 15-minute
-        // cycle doesn't move on before anyone has looked at it.
-        val step = if (mode == PreferencesManager.CYCLE_ALTERNATE) 2 else 1
-        if (refreshIndex % step != 0) return
+        // Time, not a count of refreshes. The settings promise "about every 15
+        // minutes" and "about every half hour", but a refresh can happen far more
+        // often than every 15 minutes (the clock alone asks for one each minute),
+        // so counting them moved on much faster than described.
+        val dwellMs = if (mode == PreferencesManager.CYCLE_ALTERNATE) 30 * 60 * 1000L
+        else 15 * 60 * 1000L
+        val now = System.currentTimeMillis()
+        val size = rotation.size
+        val due = now - PreferencesManager.locationSwitchedAt >= dwellMs
 
-        val cursor = PreferencesManager.locationCursor % rotation.size
-        PreferencesManager.locationCursor = (cursor + 1) % rotation.size
+        // Between switches the same place is re-applied each time rather than
+        // left to whatever happens to be in memory, so a restart of the service
+        // keeps showing the place that was showing instead of jumping on.
+        val index = if (due) {
+            val next = PreferencesManager.locationCursor % size
+            PreferencesManager.locationCursor = (next + 1) % size
+            PreferencesManager.locationSwitchedAt = now
+            next
+        } else {
+            ((PreferencesManager.locationCursor - 1) % size + size) % size
+        }
 
-        val chosen = rotation[cursor]
+        val chosen = rotation[index]
         PreferencesManager.activeLatitude = chosen.latitude
         PreferencesManager.activeLongitude = chosen.longitude
         PreferencesManager.activeLabel = chosen.label
-
-        // All three are location-specific, so a change must invalidate them.
-        lastFetchAt = 0L
-        yesterdayFetchedForDay = -1
-        lastAirAt = 0L
     }
 
     /**
@@ -488,13 +521,18 @@ class WallpaperProviderService : Service() {
         if (PreferencesManager.backgroundSource != Backgrounds.SOURCE_RADAR) return null
 
         val phase = ThemeResolver.resolve(c)
-        // Coarse key: a new encode is only worth the cost when the location,
-        // theme or alert actually changed. Precipitation itself moves every
-        // refresh regardless, so it isn't part of the key.
+        // Coarse key: a new encode is only worth the cost when something it
+        // shows has changed, and the radar itself changes about every ten
+        // minutes. It used to have no time in it at all, so once built the loop
+        // was reused until the location, theme or alert changed, and "live"
+        // radar was frozen at whatever it showed when first encoded. The time
+        // bucket rebuilds it periodically; the previous video keeps playing
+        // until the new one is ready.
         val key = listOf(
             PreferencesManager.currentLatitude, PreferencesManager.currentLongitude,
             PreferencesManager.radarZoom, phase.name, PreferencesManager.safeRadarPalette,
-            WeatherRenderer.currentAlert?.event, PreferencesManager.displayLabel
+            WeatherRenderer.currentAlert?.event, PreferencesManager.displayLabel,
+            System.currentTimeMillis() / VIDEO_REFRESH_MS
         ).joinToString("|")
 
         val cached = radarVideoFile
@@ -584,6 +622,183 @@ class WallpaperProviderService : Service() {
             baseMap?.recycle()
             scene?.recycle()
             sceneScaled?.recycle()
+        }
+    }
+
+    // ---------------------------------------------------------- wind flow map
+
+    private var windVideoFile: java.io.File? = null
+    private var windVideoKey: String? = null
+    private var windEncodeInFlight = false
+
+    /**
+     * The wind flow map as video, when either layer is set to move:
+     *  - "Animate wind" moves the streaks.
+     *  - "Animate radar" plays the last two hours of precipitation over it.
+     * They're independent, so all four combinations work. With neither on,
+     * this returns null and the still map is used.
+     */
+    private fun animatedWind(c: OpenMeteoClient.Conditions): Wallpaper? {
+        if (PreferencesManager.backgroundSource != Backgrounds.SOURCE_WIND) return null
+        val movingWind = PreferencesManager.animateWind
+        val movingRain = PreferencesManager.animateRadar
+        if (!movingWind && !movingRain) return null
+
+        val phase = ThemeResolver.resolve(c)
+        // Wind data is reused for an hour, so a loop of wind alone has little
+        // reason to be rebuilt more often than that. Anything with radar in it
+        // follows the radar's pace instead.
+        val radarShown = movingRain || PreferencesManager.windPrecipitation
+        val bucketMs = if (radarShown) VIDEO_REFRESH_MS else 4 * VIDEO_REFRESH_MS
+        val key = listOf(
+            PreferencesManager.currentLatitude, PreferencesManager.currentLongitude,
+            PreferencesManager.radarZoom, phase.name, PreferencesManager.safeRadarPalette,
+            WeatherRenderer.currentAlert?.event, PreferencesManager.displayLabel,
+            movingWind, movingRain, PreferencesManager.windPrecipitation, c.metric,
+            System.currentTimeMillis() / bucketMs
+        ).joinToString("|")
+
+        val cached = windVideoFile
+        val cacheValid = cached != null && cached.exists() && cached.length() > 0 &&
+            windVideoKey == key
+
+        if (!cacheValid && !windEncodeInFlight) {
+            windEncodeInFlight = true
+            Thread {
+                try {
+                    val video = encodeWindVideo(c, phase)
+                    if (video != null) {
+                        windVideoFile?.let { old -> if (old != video) runCatching { old.delete() } }
+                        windVideoFile = video
+                        windVideoKey = key
+                        requestSelfUpdate()
+                    }
+                } finally {
+                    windEncodeInFlight = false
+                }
+            }.start()
+        }
+
+        val toServe = if (cacheValid) cached else windVideoFile?.takeIf { it.exists() }
+        val uri = toServe?.let {
+            try {
+                val u = FileProvider.getUriForFile(this, "$packageName.fileprovider", it)
+                grantUriPermission(PROJECTIVY_PACKAGE, u, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                u
+            } catch (t: Throwable) {
+                Log.w("WeatherWallpaper", "Wind video URI failed: ${t.message}")
+                null
+            }
+        } ?: return null
+
+        return Wallpaper(
+            uri = uri.toString(),
+            type = WallpaperType.VIDEO,
+            displayMode = WallpaperDisplayMode.CROP,
+            title = OpenMeteoClient.describe(this, c.weatherCode),
+            source = "Open-Meteo",
+            author = "Open-Meteo"
+        )
+    }
+
+    /**
+     * Each frame is stacked, bottom to top: ground, wind, radar, then the
+     * vignette/legend/marker, then the scrim and readout. That's the same
+     * order as the still image, which is why the scrim and readout are drawn
+     * once on a transparent canvas and laid over everything at the end,
+     * rather than baked into the background the way animated radar does it.
+     */
+    private fun encodeWindVideo(
+        c: OpenMeteoClient.Conditions,
+        phase: ThemeResolver.Phase
+    ): java.io.File? {
+        val w = VideoEncoder.WIDTH
+        val h = VideoEncoder.HEIGHT
+        var base: android.graphics.Bitmap? = null
+        var decor: android.graphics.Bitmap? = null
+        var overlay: android.graphics.Bitmap? = null
+        var radarLayer: android.graphics.Bitmap? = null
+        return try {
+            val movingWind = PreferencesManager.animateWind
+            val movingRain = PreferencesManager.animateRadar
+            val showRain = movingRain || PreferencesManager.windPrecipitation
+
+            val scene = Backgrounds.windScene(w, h) ?: return null
+            val radar = if (showRain) {
+                Backgrounds.radarFramePaths(if (movingRain) RADAR_FRAME_COUNT else 1)
+            } else null
+            // Moving rain with no radar frames has nothing to show; moving wind
+            // can still go ahead without its precipitation.
+            if (showRain && radar == null && !movingWind) return null
+
+            // Non-null locals for use, the nullable vars above only for cleanup:
+            // the frame lambda reads these, and a smart cast on a captured var
+            // isn't something worth depending on.
+            val baseBmp = Backgrounds.windBaseMap(this, scene, w, h, phase)
+            base = baseBmp
+            val animator = if (movingWind) {
+                WindFlowRenderer.FlowAnimator(scene.field, scene.viewport, w, h, scene.seed)
+            } else null
+            // Streaks that aren't moving are drawn into the background once.
+            if (animator == null) {
+                WindFlowRenderer.drawStreaks(
+                    android.graphics.Canvas(baseBmp), scene.field, scene.viewport, w, h, scene.seed
+                )
+            }
+
+            val decorBmp = android.graphics.Bitmap.createBitmap(w, h, android.graphics.Bitmap.Config.ARGB_8888)
+            decor = decorBmp
+            Backgrounds.drawWindDecor(android.graphics.Canvas(decorBmp), w, h, c.metric, this)
+
+            // composeScene over a transparent background gives just the scrim
+            // and the readout, ready to lay over the moving layers.
+            val blank = android.graphics.Bitmap.createBitmap(1920, 1080, android.graphics.Bitmap.Config.ARGB_8888)
+            val composed = WeatherRenderer.composeScene(
+                this, c, PreferencesManager.displayLabel, blank, WeatherRenderer.currentAlert,
+                Backgrounds.windAttribution(radar != null)
+            )
+            blank.recycle()
+            val overlayBmp = android.graphics.Bitmap.createScaledBitmap(composed, w, h, true)
+            overlay = overlayBmp
+            composed.recycle()
+
+            val frames = if (animator != null) WIND_LOOP_FRAMES else radar!!.second.size
+            val layerPaint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+            var loadedRadarIndex = -1
+            val produce: (Int, android.graphics.Bitmap) -> Boolean = { index, target ->
+                val canvas = android.graphics.Canvas(target)
+                canvas.drawBitmap(baseBmp, 0f, 0f, null)
+                animator?.drawFrame(canvas, index, frames)
+                if (radar != null) {
+                    val count = radar.second.size
+                    // Moving rain steps through its frames across the loop;
+                    // a still overlay always uses the newest.
+                    val radarIndex = if (movingRain) (index * count / frames).coerceIn(0, count - 1) else count - 1
+                    if (radarIndex != loadedRadarIndex) {
+                        radarLayer?.recycle()
+                        radarLayer = Backgrounds.radarFrameAt(this, w, h, radar.first, radar.second[radarIndex])
+                        loadedRadarIndex = radarIndex
+                    }
+                    radarLayer?.let { canvas.drawBitmap(it, 0f, 0f, layerPaint) }
+                }
+                canvas.drawBitmap(decorBmp, 0f, 0f, null)
+                canvas.drawBitmap(overlayBmp, 0f, 0f, null)
+                true
+            }
+
+            if (animator != null) {
+                VideoEncoder.encode(cacheDir, frames, holdFrames = 1, fps = WIND_FPS, produce = produce)
+            } else {
+                VideoEncoder.encode(cacheDir, frames, holdFrames = 3, produce = produce)
+            }
+        } catch (t: Throwable) {
+            Log.w("WeatherWallpaper", "Wind video encode failed: ${t.message}")
+            null
+        } finally {
+            base?.recycle()
+            decor?.recycle()
+            overlay?.recycle()
+            radarLayer?.recycle()
         }
     }
 
@@ -878,8 +1093,43 @@ class WallpaperProviderService : Service() {
         return cachedAlert
     }
 
+    /**
+     * Forgets everything cached for a different place.
+     *
+     * Each of these caches is only valid for the coordinates it was fetched
+     * for, but most were keyed by time alone. Only some were reset when the
+     * rotation moved on, so an alert, an aurora watch or the wave conditions
+     * for one place could stay on screen over the next. Keying them all by
+     * location here covers the rotation and also a location changed in
+     * settings.
+     */
+    private fun dropCachesIfLocationChanged() {
+        val key = String.format(
+            java.util.Locale.US, "%.4f,%.4f",
+            PreferencesManager.currentLatitude, PreferencesManager.currentLongitude
+        )
+        if (key == cacheLocationKey) return
+        cacheLocationKey = key
+
+        cached = null
+        lastFetchAt = 0L
+        yesterdayHigh = null
+        yesterdayFetchedForDay = -1
+        cachedAlert = null
+        lastAlertAt = 0L
+        cachedAir = null
+        lastAirAt = 0L
+        cachedAurora = null
+        lastAuroraAt = 0L
+        cachedMarine = null
+        lastMarineAt = 0L
+    }
+
     private fun currentConditions(): OpenMeteoClient.Conditions? {
         bootstrapLocationIfNeeded()
+        // The first-run lookup can change the primary location, after the
+        // rotation was chosen, so check again.
+        dropCachesIfLocationChanged()
         val now = System.currentTimeMillis()
         val stale = now - lastFetchAt > MIN_FETCH_INTERVAL_MS
         if (stale || cached == null) {

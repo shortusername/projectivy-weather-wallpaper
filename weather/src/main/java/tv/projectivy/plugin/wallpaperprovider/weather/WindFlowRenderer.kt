@@ -13,17 +13,19 @@ import kotlin.math.atan
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.sin
 import kotlin.math.sinh
 import kotlin.math.sqrt
 
 /**
- * Draws a static "wind flow" picture: short streaks that follow the wind,
- * tapering from a faint tail to a bright head so the direction reads without
- * any animation, coloured by speed.
+ * Draws the wind-flow picture: short streaks that follow the wind, tapering
+ * from a faint tail to a bright head so the direction reads without any
+ * animation, coloured by speed.
  *
- * Think of it as one frozen frame of a particle animation. It's an ordinary
- * image, so it works on every device — no video, no decoder, nothing that can
- * keep the screensaver from starting.
+ * [drawStreaks] is one frozen frame. It's an ordinary image, so it works on
+ * every device. [FlowAnimator] is the same flow set in motion, for the video
+ * path: it only ever produces frames for the encoder, never anything the
+ * launcher animates itself.
  *
  * Streaks are traced through the wind field in screen space, so the picture
  * has to know how canvas pixels map to latitude and longitude; that's what
@@ -48,7 +50,7 @@ object WindFlowRenderer {
 
     private const val MAX_SPEED = 25f      // m/s at the top of the colour ramp
     private const val MIN_SPEED = 0.05f    // below this a direction isn't meaningful
-    private const val STEPS = 14           // segments per streak
+    private const val STEPS = 14           // segments per still streak
 
     private val RAMP_SPEEDS = floatArrayOf(0f, 3f, 6f, 10f, 14f, 18f, 25f)
     private val RAMP_COLORS = intArrayOf(
@@ -137,15 +139,14 @@ object WindFlowRenderer {
         return n
     }
 
-    fun draw(
+    /** The still picture: every streak at once, tail to head. */
+    fun drawStreaks(
         canvas: Canvas,
         field: WindClient.Field,
         vp: Viewport,
         width: Int,
         height: Int,
-        seed: Long,
-        metric: Boolean,
-        legendTitle: String
+        seed: Long
     ) {
         val px = width / 1920f
         val cell = 34f * px
@@ -198,8 +199,138 @@ object WindFlowRenderer {
                 }
             }
         }
+    }
 
-        drawLegend(canvas, width, height, px, metric, legendTitle)
+    /**
+     * The moving version, for encoding into a loop.
+     *
+     * The wind field is a single snapshot, so the streamlines themselves never
+     * change. What moves is a short bright "comet" sliding along each one. The
+     * streamlines are traced once up front; each frame just redraws every
+     * comet a little further along, which is far cheaper than retracing.
+     *
+     * The loop is seamless by construction. A comet's position is a repeating
+     * function of time, so the last frame hands straight back to the first, and
+     * each comet fades in and out at the ends of its path so the point where it
+     * wraps round is never visible. Random per-comet phases keep them from
+     * moving in lockstep. Faster wind has a longer path covered in the same
+     * time, so it genuinely moves faster.
+     */
+    class FlowAnimator(
+        field: WindClient.Field,
+        vp: Viewport,
+        private val width: Int,
+        private val height: Int,
+        seed: Long
+    ) {
+        private class Comet(
+            val xs: FloatArray,
+            val ys: FloatArray,
+            val colors: IntArray,
+            val speed: Float,
+            val phase: Float,
+            val strokeWidth: Float
+        )
+
+        private val comets = ArrayList<Comet>()
+        private val px = width / 1920f
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeCap = Paint.Cap.BUTT
+        }
+
+        init {
+            // A different random stream from the still picture, so the two
+            // don't share their jitter pattern.
+            val rnd = Random(seed xor 0x5DEECE66DL)
+            val cell = 46f * px
+            val half = PATH_POINTS / 2
+            val vel = FloatArray(2)
+            val backX = FloatArray(half + 1)
+            val backY = FloatArray(half + 1)
+            val fwdX = FloatArray(half + 1)
+            val fwdY = FloatArray(half + 1)
+
+            val gridCols = (width / cell).toInt() + 1
+            val gridRows = (height / cell).toInt() + 1
+            for (gy in 0 until gridRows) {
+                for (gx in 0 until gridCols) {
+                    val x0 = (gx + rnd.nextFloat()) * cell
+                    val y0 = (gy + rnd.nextFloat()) * cell
+                    WindFlowRenderer.velocity(field, vp, x0, y0, vel)
+                    val speed = sqrt(vel[0] * vel[0] + vel[1] * vel[1])
+                    // The phase is drawn for every cell, used or not, so one
+                    // calm cell can't shift the random sequence of the rest.
+                    val phase = rnd.nextFloat()
+                    if (speed < 0.3f) continue
+
+                    val pathLength = (60f + speed * 16f).coerceIn(60f, 320f) * px
+                    val h = pathLength / PATH_POINTS
+                    val nb = WindFlowRenderer.trace(field, vp, x0, y0, -1f, half, h, backX, backY, vel)
+                    val nf = WindFlowRenderer.trace(field, vp, x0, y0, 1f, half, h, fwdX, fwdY, vel)
+                    val count = nb + nf + 1
+                    if (count < 6) continue
+
+                    // Tail first: the backward points reversed (ending on the
+                    // seed), then the forward points.
+                    val xs = FloatArray(count)
+                    val ys = FloatArray(count)
+                    var k = 0
+                    for (i in nb downTo 0) {
+                        xs[k] = backX[i]; ys[k] = backY[i]; k++
+                    }
+                    for (i in 1..nf) {
+                        xs[k] = fwdX[i]; ys[k] = fwdY[i]; k++
+                    }
+                    val colors = IntArray(count)
+                    for (i in 0 until count) {
+                        WindFlowRenderer.velocity(field, vp, xs[i], ys[i], vel)
+                        colors[i] = WindFlowRenderer.colorFor(sqrt(vel[0] * vel[0] + vel[1] * vel[1]))
+                    }
+                    val stroke = (1.6f + min(speed, 20f) / 20f * 2.0f) * px
+                    comets.add(Comet(xs, ys, colors, speed, phase, stroke))
+                }
+            }
+        }
+
+        /** Draws frame [index] of a loop of [total] frames onto [canvas]. */
+        fun drawFrame(canvas: Canvas, index: Int, total: Int) {
+            val t = index.toFloat() / total
+            for (comet in comets) {
+                val n = comet.xs.size - 1
+                val u = ((t + comet.phase) % 1f) * n
+                val envelope = sin(PI.toFloat() * u / n)
+                if (envelope <= 0.02f) continue
+                val base = (0.55f + 0.45f * min(comet.speed / 12f, 1f)) * envelope
+                val lo = max(0f, u - TRAIL_POINTS)
+                paint.strokeWidth = comet.strokeWidth
+                val last = min(n - 1, u.toInt())
+                for (k in lo.toInt()..last) {
+                    val s0 = max(k.toFloat(), lo)
+                    val s1 = min(k + 1f, u)
+                    if (s1 <= s0) continue
+                    val ax = at(comet.xs, s0)
+                    val ay = at(comet.ys, s0)
+                    val bx = at(comet.xs, s1)
+                    val by = at(comet.ys, s1)
+                    val age = u - (s0 + s1) / 2f
+                    val a = (1f - age / TRAIL_POINTS).coerceIn(0f, 1f).pow(1.5f) * base *
+                        WindFlowRenderer.panelFactor((ax + bx) / 2f, (ay + by) / 2f, width, height, px) * 1.25f
+                    paint.color = WindFlowRenderer.withAlpha(comet.colors[k], (255f * a).toInt().coerceIn(0, 255))
+                    canvas.drawLine(ax, ay, bx, by, paint)
+                }
+            }
+        }
+
+        private fun at(values: FloatArray, s: Float): Float {
+            val i = min(s.toInt(), values.size - 2)
+            return values[i] + (values[i + 1] - values[i]) * (s - i)
+        }
+
+        private companion object {
+            const val PATH_POINTS = 24
+            const val TRAIL_POINTS = 9f
+        }
     }
 
     /**
@@ -207,9 +338,8 @@ object WindFlowRenderer {
      * own units, positioned by their equivalent in m/s along the colour ramp.
      * The unit letters stay as written, the same call made for km/h elsewhere.
      */
-    private fun drawLegend(
-        canvas: Canvas, width: Int, height: Int, px: Float, metric: Boolean, title: String
-    ) {
+    fun drawLegend(canvas: Canvas, width: Int, height: Int, metric: Boolean, title: String) {
+        val px = width / 1920f
         val barW = 520f * px
         val barH = 12f * px
         val right = width - 120f * px

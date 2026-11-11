@@ -31,6 +31,13 @@ On first run the plugin estimates your location from your IP, so it works
 immediately. Correct it in settings via the gear icon beside the plugin name —
 locations are added by name, not coordinates.
 
+An IP address only gives a rough idea of where you are, so that first guess can
+be the wrong town, or even the wrong state. To set your real location, open the
+plugin's settings, go to **Location**, and choose **Find my location**: type your
+town and confirm the match. **Add another location** adds places to the rotation
+instead, and each saved place has its own row where you can **Use as my
+location** or **Remove** it.
+
 ## What it shows
 
 Always: temperature, conditions, feels-like, today's high and low, and wind with
@@ -63,7 +70,7 @@ large for your room.
 | Illustrated scenes | nothing | Drawn in code, matched to conditions. Default. |
 | Live radar | nothing | [RainViewer](https://www.rainviewer.com/) over a built-in vector map |
 | Satellite | nothing | Real cloud imagery from NOAA GOES (public domain). Covers the Americas, Atlantic and Pacific; there's a gap through the Middle East, China and Southeast Asia |
-| Wind flow map | nothing | Streaks that follow the wind, coloured by speed, over the same built-in vector map. Wind data from [Open-Meteo](https://open-meteo.com/) |
+| Wind flow map | nothing | Streaks that follow the wind, coloured by speed, over the same built-in vector map. Optionally with the latest radar on top (**Rain and snow on wind map**). Wind data from [Open-Meteo](https://open-meteo.com/) |
 | Your photos or videos | files on the TV | Drop them in the plugin's folder, named by condition |
 | Community packs | nothing | Contributed images and videos, downloaded on demand |
 | Plain gradient | nothing | If you want it quiet |
@@ -141,8 +148,22 @@ are worth doing first if you're short on time.
 
 ## Experimental features
 
-The two animation options sit behind an **Experimental features** toggle, off by
-default: **Animate radar** and **Animate rain and snow**.
+The animation options sit behind an **Experimental features** toggle, off by
+default: **Animate radar**, **Animate wind**, and **Animate rain and snow**.
+
+On the **Wind flow map** background, the first two are independent, so you can
+move the wind, the precipitation, both, or neither:
+
+| Animate wind | Animate radar | What you get |
+|:--|:--|:--|
+| off | off | Still wind map (add **Rain and snow on wind map** for the latest radar on top, still) |
+| off | on | Still wind streaks, the last two hours of precipitation moving over them |
+| on | off | Streaks gliding along the flow (with the latest radar, still, if enabled) |
+| on | on | Both moving |
+
+The moving streaks are a short bright comet sliding along each flow line, and the
+loop is seamless. Only the streaks move: the wind field is one snapshot, so the
+flow lines themselves don't change.
 
 They were originally built with Lottie, which turned out not to work here.
 Testing on an Nvidia Shield showed the launcher renders Lottie shape layers
@@ -232,6 +253,7 @@ consider turning off sun times, which narrow down your coordinates.
 | `MIN_FETCH_INTERVAL_MS` | 10 min | Floor on actual Open-Meteo calls |
 | Background cache | 9 min | Reuses the composed background between renders |
 | Wind data cache | 60 min | How long a fetched wind grid is reused. Wind changes slowly, and one request covers the whole map |
+| Animation rebuild | 15 min | How often an animated radar or wind loop is re-encoded so it keeps showing current precipitation (wind-only loops: hourly) |
 | Pack index cache | 24 hours | How often the pack list is re-checked |
 
 Expect the reading to update roughly every 15 minutes. Projectivy's own wallpaper

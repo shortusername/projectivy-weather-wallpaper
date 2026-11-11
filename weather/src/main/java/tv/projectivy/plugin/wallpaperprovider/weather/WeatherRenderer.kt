@@ -97,6 +97,8 @@ object WeatherRenderer {
      * one and the wallpaper appeared frozen — including after settings changes.
      */
     private const val OUTPUT_PREFIX = "weather_wallpaper_"
+    private const val RADAR_CREDIT =
+        "Radar: RainViewer \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)"
     private const val OVERLAY_PREFIX = "weather_overlay_"
 
     private lateinit var light: Typeface
@@ -331,7 +333,8 @@ object WeatherRenderer {
         c: OpenMeteoClient.Conditions,
         placeLabel: String,
         background: Bitmap?,
-        alert: NwsAlertsClient.Alert?
+        alert: NwsAlertsClient.Alert?,
+        attribution: String = RADAR_CREDIT
     ): Bitmap {
         val bitmap = Bitmap.createBitmap(W, H, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
@@ -353,7 +356,7 @@ object WeatherRenderer {
         canvas.translate(shiftX2, shiftY2)
         drawPanel(
             canvas, c, placeLabel,
-            "Radar: RainViewer \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)",
+            attribution,
             alert, phase.isDay, context
         )
         canvas.restore()

@@ -79,7 +79,8 @@ object Backgrounds {
                 // default-radar render was misattributing the map. Fixed.
                 it to radarAttribution()
             }
-            SOURCE_WIND -> windMap(context, c, width, height, phase)?.let { it to windAttribution() }
+            SOURCE_WIND -> windMap(context, c, width, height, phase)
+                ?.let { it to windAttribution(PreferencesManager.windPrecipitation) }
             else -> null
         }
     } catch (e: Exception) {
@@ -397,26 +398,28 @@ object Backgrounds {
     }
 
     /**
-     * Static wind-flow map: the bundled vector basemap with streaks following
-     * the wind drawn over it.
+     * Everything the still and animated wind backgrounds share: where the map
+     * sits, and the wind data to draw over it.
      *
-     * The viewport maths deliberately mirrors radarMap so the two backgrounds
-     * line up — same area setting, same marker position, same room left for
-     * the readout — but is written out here rather than shared, to leave the
-     * working radar path untouched. Uses the bundled vectors only; a custom
-     * basemap URL applies to the radar map, not this one.
-     *
-     * Returns null if the wind data can't be fetched, in which case the
-     * renderer falls back to the illustrated scene rather than showing an
-     * empty map.
+     * The geometry deliberately mirrors radarMap, so the layers line up exactly
+     * (same area setting, same marker position, same room left for the readout).
+     * It's written out here rather than shared, to leave the working radar path
+     * untouched. The animated versions ask for a scene at video size: the same
+     * world coordinates and the same wind grid apply, only the pixel scale
+     * differs, so the grid is fetched once and reused from WindClient's cache.
      */
-    private fun windMap(
-        context: Context,
-        c: OpenMeteoClient.Conditions,
-        width: Int,
-        height: Int,
-        phase: ThemeResolver.Phase
-    ): Bitmap? {
+    class WindScene(
+        val zoom: Int,
+        val left: Double,
+        val top: Double,
+        val scale: Double,
+        val viewport: WindFlowRenderer.Viewport,
+        val field: WindClient.Field,
+        val seed: Long
+    )
+
+    /** Null if the wind data can't be fetched. */
+    fun windScene(width: Int, height: Int): WindScene? {
         val zoom = PreferencesManager.radarZoom.coerceIn(3, 7)
         val lat = PreferencesManager.currentLatitude
         val lon = PreferencesManager.currentLongitude
@@ -430,10 +433,8 @@ object Backgrounds {
         val scale = width / (3.0 * tileSize)
         val viewW = width / scale
         val viewH = height / scale
-        val fracX = 0.62
-        val fracY = 0.54
-        val left = cxWorld - viewW * fracX
-        val top = cyWorld - viewH * fracY
+        val left = cxWorld - viewW * 0.62
+        val top = cyWorld - viewH * 0.54
         val viewport = WindFlowRenderer.Viewport(left, top, scale, worldPx)
 
         // The grid covers the view plus a margin, so streaks near the edges
@@ -448,19 +449,35 @@ object Backgrounds {
             latMin - padLat, latMax + padLat, lonMin - padLon, lonMax + padLon
         ) ?: return null
 
+        val seed = (lat * 1000).toLong() * 31L + (lon * 1000).toLong() * 17L + zoom
+        return WindScene(zoom, left, top, scale, viewport, field, seed)
+    }
+
+    /** Ground and coastlines only: the layer the wind and precipitation sit on. */
+    fun windBaseMap(
+        context: Context,
+        scene: WindScene,
+        width: Int,
+        height: Int,
+        phase: ThemeResolver.Phase
+    ): Bitmap {
         val out = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         canvas.drawColor(Color.parseColor("#0A1420"))
         // If the vectors fail to load there's still water-coloured ground for
         // the wind to flow over, which is better than nothing.
-        GeographyRenderer.draw(context, canvas, zoom, left, top, scale, width, height, phase)
-
-        val seed = (lat * 1000).toLong() * 31L + (lon * 1000).toLong() * 17L + zoom
-        WindFlowRenderer.draw(
-            canvas, field, viewport, width, height, seed, c.metric,
-            context.getString(R.string.wind_legend_title)
+        GeographyRenderer.draw(
+            context, canvas, scene.zoom, scene.left, scene.top, scene.scale, width, height, phase
         )
+        return out
+    }
 
+    /**
+     * Vignette, speed legend and location marker. Drawn above the wind and any
+     * precipitation but below the scrim and readout, in the still image and in
+     * each video frame alike, so the two look the same.
+     */
+    fun drawWindDecor(canvas: Canvas, width: Int, height: Int, metric: Boolean, context: Context) {
         val vignette = Paint().apply {
             shader = android.graphics.RadialGradient(
                 width / 2f, height / 2f, width * 0.72f,
@@ -471,10 +488,15 @@ object Backgrounds {
         }
         canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), vignette)
 
+        WindFlowRenderer.drawLegend(
+            canvas, width, height, metric, context.getString(R.string.wind_legend_title)
+        )
+
         // Location marker, suppressed in demo mode just as on the radar map.
         if (!PreferencesManager.demoMode) {
-            val mx = (width * fracX).toFloat()
-            val my = (height * fracY).toFloat()
+            val k = width / 1920f
+            val mx = width * 0.62f
+            val my = height * 0.54f
             val dot = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
             val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.FILL
@@ -482,21 +504,62 @@ object Backgrounds {
             }
             val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 style = Paint.Style.STROKE
-                strokeWidth = 3f
+                strokeWidth = 3f * k
                 color = Color.argb(110, 255, 255, 255)
             }
-            canvas.drawCircle(mx, my, 11f, halo)
-            canvas.drawCircle(mx, my, 7f, dot)
-            canvas.drawCircle(mx, my, 19f, ring)
-            canvas.drawCircle(mx, my, 29f, Paint(ring).apply { alpha = 55 })
+            canvas.drawCircle(mx, my, 11f * k, halo)
+            canvas.drawCircle(mx, my, 7f * k, dot)
+            canvas.drawCircle(mx, my, 19f * k, ring)
+            canvas.drawCircle(mx, my, 29f * k, Paint(ring).apply { alpha = 55 })
         }
+    }
 
+    /** The newest radar observation as a transparent overlay, or null. */
+    fun latestRadarLayer(context: Context, width: Int, height: Int): Bitmap? {
+        val (host, paths) = radarFramePaths(1) ?: return null
+        return radarFrameAt(context, width, height, host, paths[0])
+    }
+
+    /**
+     * Still wind-flow map: the basemap with streaks following the wind drawn
+     * over it, and optionally the latest radar frame on top.
+     *
+     * Uses the bundled vectors only; a custom basemap URL applies to the radar
+     * map, not this one. Returns null if the wind data can't be fetched, in
+     * which case the renderer falls back to the illustrated scene rather than
+     * showing an empty map.
+     */
+    private fun windMap(
+        context: Context,
+        c: OpenMeteoClient.Conditions,
+        width: Int,
+        height: Int,
+        phase: ThemeResolver.Phase
+    ): Bitmap? {
+        val scene = windScene(width, height) ?: return null
+        val out = windBaseMap(context, scene, width, height, phase)
+        val canvas = Canvas(out)
+        WindFlowRenderer.drawStreaks(canvas, scene.field, scene.viewport, width, height, scene.seed)
+        if (PreferencesManager.windPrecipitation) {
+            latestRadarLayer(context, width, height)?.let { layer ->
+                canvas.drawBitmap(layer, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+                layer.recycle()
+            }
+        }
+        drawWindDecor(canvas, width, height, c.metric, context)
         return out
     }
 
-    /** Credit line for the wind map: Open-Meteo data over the bundled basemap. */
-    private fun windAttribution(): String =
-        "Wind: Open-Meteo \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)"
+    /**
+     * Credit line for the wind map. RainViewer is credited whenever its data is
+     * on screen, which is why this depends on whether precipitation is shown.
+     */
+    fun windAttribution(withRadar: Boolean): String =
+        if (withRadar) {
+            "Wind: Open-Meteo \u00B7 Radar: RainViewer \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)"
+        } else {
+            "Wind: Open-Meteo \u00B7 Map: Natural Earth \u00B7 Places: GeoNames (CC BY)"
+        }
 
     /** Credit line: RainViewer always, plus whatever the basemap needs. */
     private fun radarAttribution(): String {
@@ -543,7 +606,7 @@ object Backgrounds {
             PreferencesManager.currentLatitude, PreferencesManager.currentLongitude,
             PreferencesManager.radarZoom, PreferencesManager.labelDensity,
             PreferencesManager.safeRadarPalette, PreferencesManager.selectedPack,
-            OpenMeteoClient.bucket(c.weatherCode), c.metric
+            OpenMeteoClient.bucket(c.weatherCode), c.metric, PreferencesManager.windPrecipitation
         ).joinToString("|")
 
         val now = System.currentTimeMillis()

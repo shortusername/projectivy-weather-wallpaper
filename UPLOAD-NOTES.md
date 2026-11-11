@@ -1,89 +1,61 @@
-# Wallpaper text fully translatable, plus the wind map and stronger translation checks
+# Fix: every place in the rotation showed the previous place's weather
 
-Thirteen files. Use THIS ONE: it contains everything from projectivy-weather-wind-map.zip
-(and the geocoding fix), so don't also apply those, or an older strings.xml could
-overwrite this one and break the build. No build.gradle.kts change.
+Sixteen files, cumulative. Use THIS ONE: it contains everything from
+projectivy-weather-location-fix.zip, so don't also apply that one. No build.gradle.kts change.
+Only WallpaperProviderService.kt and PreferencesManager.kt differ from that zip.
 
-New:      TextFormats.kt, WindClient.kt, WindFlowRenderer.kt
-Modified: WeatherRenderer.kt, OpenMeteoClient.kt, Advisories.kt, Backgrounds.kt,
-          SettingsFragment.kt, strings.xml, README.md, TRANSLATING.md,
-          templates/strings-template.xml, .github/scripts/validate_translations.py
+## The report
 
-## Why
+Someone in SW France added four extra locations. Locally the forecast was about right. Cauterets
+(mountains) was 7 degrees too warm, Montreal and St-Sauveur 1-2 degrees off, and Rio de Janeiro more
+than 20 degrees too cold.
 
-A first-time contributor submitted a full Spanish translation and pointed out
-that a lot of text drawn on the wallpaper was still hardcoded in Kotlin. They
-were right, and the real list was longer than their four examples.
+## Cause
 
-## What now comes from strings.xml (41 new strings)
+Each refresh did this, in order: fetch the weather for the location that was active, THEN switch to
+the next location in the rotation, THEN draw with the new location's name. So every place was shown
+with the weather of the one before it. Rio wearing a Montreal or French November temperature is
+exactly this; so is mountain Cauterets wearing valley weather; Montreal and St-Sauveur are 80 km
+apart, so passing each other's data looks only slightly wrong. The home location looks right on the
+first pass because nothing precedes it.
+A small model of the old order reproduces all of that (7, 2, 1 and 25 degree errors with
+illustrative temperatures) and shows the new order correct. The selection comment in the old code
+already said "before anything fetches or draws"; the call had simply been placed after the fetch.
 
-- The detail line: Feels like, H/L, Wind (+ direction)
-- "N degrees warmer/cooler than yesterday"
-- Stats line: Humidity, UV, Dew, Visibility
-- Sunrise, Sunset, "Xh Ym of daylight left"
-- Nowcast: all nine "Rain/Snow starting/easing/continuing" phrases
-- "Update available" notice and the "Updated" stamp
-- The 16 compass directions
+## It reached further than temperature
 
-Rain and snow are separate strings, not one sentence with a swapped noun, because
-the surrounding words change with the noun in many languages.
+Only the forecast, yesterday's high and air quality were reset when the rotation moved on. The
+severe-weather alert, the aurora line and the wave conditions were cached by time alone, so an alert
+for one place could stay on screen over the next one.
 
-## What needs no translation at all (new TextFormats.kt)
+## What changed (WallpaperProviderService.kt, PreferencesManager.kt)
 
-Clock times, hourly labels, weekday names, dates and AM/PM used to be built in
-English by hand. They now use the device locale's own patterns, and the 12/24-hour
-setting now reaches the hourly strip and sunrise/sunset too (it only reached the
-clock before).
+1. The location is chosen first, then the weather is fetched.
+2. One function, dropCachesIfLocationChanged, resets EVERY location-specific cache (forecast,
+   yesterday's high, alert, air quality, aurora, waves) whenever the coordinates differ from the ones
+   they were fetched for. That also covers changing your location in settings, and the first-run IP
+   lookup, which can change the primary after the rotation was chosen.
+3. The rotation follows real time. The settings say "about every 15 minutes" and "about every half
+   hour", but the code counted refreshes, and a refresh can come far more often than every 15 minutes
+   (the clock alone asks for one each minute). The chosen place is now re-applied between switches, so
+   restarting the service doesn't make it jump on. Checked in a model: a refresh every minute and two
+   restarts still gave a change exactly every 15 minutes.
+   A new persisted value, locationSwitchedAt, records the last switch. It isn't exported with settings.
 
-VISIBLE CHANGE FOR ENGLISH: the clock date follows the locale's ordering. A US
-device now shows "Mon, Nov 9" where it showed "Mon 9 Nov". Times and hour labels
-read the same as before in en-US.
+## Not changed, but worth knowing
 
-## Bugs found and fixed along the way
-
-- "Xh Ym of daylight left" compared sunset (a time at the displayed place) with the
-  DEVICE's time of day, so it was wrong anywhere in a different timezone. Same
-  class as the earlier New Zealand fix; that one was missed. Uses the location's
-  clock now.
-- The clock's date was formatted in the device timezone even when given a
-  location-adjusted calendar, which could show the wrong date. It now formats in
-  the calendar's own zone.
-- Credit lines vanished on cached backgrounds (see the wind-map notes).
-
-## Deliberately left in English
-
-Data-source credits at the foot of the wallpaper ("Radar: RainViewer", "Wind:
-Open-Meteo"). They're attributions built around proper names. Also units (km/h,
-mph, hPa, inHg) and "AQI", as before.
-
-## The translation validator caught up
-
-It already checked names and plugin_uuid. It now also checks, per file:
-- placeholders match the English string exactly (a dropped or extra %1$s throws
-  when the wallpaper is drawn)
-- no stray single % (a literal percent must be %%)
-- no unescaped apostrophe (L'altitude fails the build; L\'altitude is right), which
-  is common in French, Italian and Catalan
-- <plurals>: known name, an "other" item, no foreign placeholders
-
-Tested against deliberately broken files; it flags each case and passes a good file
-that reorders placeholders and uses %%, \' and a "many" plural.
-
-NOTE for the Spanish PR: a pull request runs the workflow from its own merge
-commit, so it will keep using the old validator until the contributor updates
-their branch from main after this lands.
+- The world weather watch also counts refreshes (refreshIndex % n) rather than time, so it has the same
+  too-often problem when refreshes are frequent. I left it alone; it's a separate feature.
+- If a mountain place is still several degrees off after this, that can be real: forecasts for
+  mountain towns depend on the exact coordinates' elevation, and a town and the ridge above it differ
+  by several degrees. I can't tell from here.
 
 ## Honest limits
 
-- Not compiled or run on a device from here. The checks below target the mistakes
-  that have cost builds before; a real build is still the real test.
-- Contributors' existing translations won't have the new strings yet. That's fine:
-  anything missing falls back to English, string by string.
+Not compiled or run from here. The checks target the mistakes that have cost builds before.
 
 ## Verified
 
-Balanced braces; no duplicate strings or declarations; every R.string reference
-defined and used; cross-file calls resolve; argument counts match for every changed
-function; all 25 TextFormats.tr() calls supply exactly the arguments their strings
-need; no unescaped %N$ in Kotlin; no stale references; no uncalled private
-functions; template matches strings.xml (302 entries including plurals).
+Balanced braces; no duplicate declarations; strings defined and used; cross-file calls resolve; the
+selection call precedes the weather fetch; all twelve location-specific cache variables (six values and
+their timestamps) are reset together; no uncalled private functions; no leftover refresh-count rotation.

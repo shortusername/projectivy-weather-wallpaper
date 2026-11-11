@@ -59,6 +59,7 @@ object VideoEncoder {
         cacheDir: File,
         frameCount: Int,
         holdFrames: Int = 4,
+        fps: Int = FPS,
         produce: (index: Int, target: Bitmap) -> Boolean
     ): File? {
         if (frameCount <= 0) return null
@@ -112,7 +113,7 @@ object VideoEncoder {
             val format = MediaFormat.createVideoFormat(MIME, WIDTH, HEIGHT).apply {
                 setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
                 setInteger(MediaFormat.KEY_BIT_RATE, BITRATE)
-                setInteger(MediaFormat.KEY_FRAME_RATE, FPS)
+                setInteger(MediaFormat.KEY_FRAME_RATE, fps)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, KEYFRAME_INTERVAL_S)
             }
             codec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -140,7 +141,7 @@ object VideoEncoder {
                             if (sourceIndex >= frameCount) {
                                 codec.queueInputBuffer(
                                     inputIndex, 0, 0,
-                                    ptsFor(encodedFrames),
+                                    ptsFor(encodedFrames, fps),
                                     MediaCodec.BUFFER_FLAG_END_OF_STREAM
                                 )
                                 endOfInput = true
@@ -149,7 +150,7 @@ object VideoEncoder {
                                     // Producer gave up; end cleanly with what we have.
                                     codec.queueInputBuffer(
                                         inputIndex, 0, 0,
-                                        ptsFor(encodedFrames),
+                                        ptsFor(encodedFrames, fps),
                                         MediaCodec.BUFFER_FLAG_END_OF_STREAM
                                     )
                                     endOfInput = true
@@ -167,7 +168,7 @@ object VideoEncoder {
                             buffer.clear()
                             buffer.put(yuv)
                             codec.queueInputBuffer(
-                                inputIndex, 0, yuv.size, ptsFor(encodedFrames), 0
+                                inputIndex, 0, yuv.size, ptsFor(encodedFrames, fps), 0
                             )
                             encodedFrames++
                             holdRemaining--
@@ -215,8 +216,8 @@ object VideoEncoder {
         }
     }
 
-    private fun ptsFor(frameIndex: Int): Long =
-        frameIndex.toLong() * 1_000_000L / FPS
+    private fun ptsFor(frameIndex: Int, fps: Int): Long =
+        frameIndex.toLong() * 1_000_000L / fps
 
     /**
      * ARGB to YUV420, either semi-planar (NV12) or fully planar (I420).

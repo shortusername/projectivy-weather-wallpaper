@@ -13,6 +13,9 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
     /** Held between a search and the user picking one of its results. */
     private var searchResults: List<GeocodingClient.Place> = emptyList()
+    // Which search the pending results belong to: finding your own location,
+    // or adding another one to the rotation.
+    private var searchTarget: Long = ACTION_ID_ADD_LOCATION
 
     /**
      * Which settings category this screen shows, or null for the root screen
@@ -174,6 +177,9 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val SUB_SEARCH_BASE = 2000L
         /** Saved locations, selected to remove. */
         private const val SUB_SAVED_BASE = 3000L
+        // "Use as my location" for saved place i, and the per-place rows themselves.
+        private const val SUB_SAVED_USE_BASE = 12000L
+        private const val SAVED_ROW_BASE = 14000L
 
         private const val SUB_WORLD_OFF = 140L
         private const val SUB_WORLD_OCC = 141L
@@ -197,6 +203,9 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_ID_MARINE = 50L
         private const val ACTION_ID_LAST_UPDATED = 51L
         private const val ACTION_ID_SUPPORT = 52L
+        private const val ACTION_ID_WIND_PRECIP = 53L
+        private const val ACTION_ID_ANIMATE_WIND = 54L
+        private const val ACTION_ID_FIND_LOCATION = 55L
 
         /**
          * Sub-action id ranges, each 1000 wide.
@@ -223,9 +232,13 @@ class SettingsFragment : GuidedStepSupportFragment() {
      */
     private fun categoryOf(id: Long): String? = when (id) {
         ACTION_ID_LATITUDE, ACTION_ID_LONGITUDE, ACTION_ID_PLACE, ACTION_ID_UNITS,
-        ACTION_ID_ADD_LOCATION, ACTION_ID_LOCATIONS, ACTION_ID_CYCLE -> CAT_LOCATION
+        ACTION_ID_FIND_LOCATION, ACTION_ID_ADD_LOCATION, ACTION_ID_LOCATIONS, ACTION_ID_CYCLE ->
+            CAT_LOCATION
 
-        ACTION_ID_BACKGROUND, ACTION_ID_UNSPLASH, ACTION_ID_RADAR_ZOOM, ACTION_ID_PACK,
+        in SAVED_ROW_BASE until SAVED_ROW_BASE + SUB_RANGE -> CAT_LOCATION
+
+        ACTION_ID_BACKGROUND, ACTION_ID_UNSPLASH, ACTION_ID_RADAR_ZOOM, ACTION_ID_WIND_PRECIP,
+        ACTION_ID_PACK,
         ACTION_ID_PACK_REFRESH, ACTION_ID_BASEMAP, ACTION_ID_BASEMAP_ATTR, ACTION_ID_LABELS,
         ACTION_ID_THEME, ACTION_ID_HOLIDAY, ACTION_ID_SCALE, ACTION_ID_SAFE_RADAR ->
             CAT_APPEARANCE
@@ -240,7 +253,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
 
         ACTION_ID_SAFE_AREA, ACTION_ID_IDLE_FULL, ACTION_ID_REDUCE_BURN_IN -> CAT_SCREEN
 
-        ACTION_ID_ANIMATE, ACTION_ID_ANIMATE_PRECIP, ACTION_ID_EXPERIMENTAL ->
+        ACTION_ID_ANIMATE, ACTION_ID_ANIMATE_PRECIP, ACTION_ID_ANIMATE_WIND, ACTION_ID_EXPERIMENTAL ->
             CAT_EXPERIMENTAL
 
         ACTION_ID_DEMO, ACTION_ID_DEMO_LABEL -> CAT_DEMO
@@ -369,6 +382,14 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 InputType.TYPE_NUMBER_FLAG_DECIMAL or
                 InputType.TYPE_NUMBER_FLAG_SIGNED
 
+        // Setting your own location by name. Until this existed the only way to
+        // change it was typing coordinates, so anyone whose first-run IP estimate
+        // landed in the wrong place had no practical way to fix it.
+        allActions.add(searchAction(
+            ACTION_ID_FIND_LOCATION, R.string.setting_find_location_title,
+            R.string.setting_find_location_desc
+        ))
+
         val lat = PreferencesManager.latitude.toString()
         allActions.add(
             GuidedAction.Builder(context)
@@ -404,58 +425,44 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
-        // When a search returned several matches, they're attached here so the
-        // action is bound with them present and can actually be opened.
-        val pending = searchResults
-        val addBuilder = GuidedAction.Builder(context)
-            .id(ACTION_ID_ADD_LOCATION)
-            .title(R.string.setting_add_location_title)
-            .editDescription("")
-            .descriptionEditable(true)
-        if (pending.isNotEmpty()) {
-            addBuilder
-                .description(
-                    resources.getQuantityString(
-                        R.plurals.locations_pick_match, pending.size, pending.size
-                    )
-                )
-                .subActions(
-                    pending.mapIndexed { i, place ->
-                        GuidedAction.Builder(context)
-                            .id(SUB_SEARCH_BASE + i)
-                            .title(place.label)
-                            .build()
-                    }
-                )
-        } else {
-            addBuilder.description(R.string.setting_add_location_desc)
-        }
-        allActions.add(addBuilder.build())
+        allActions.add(searchAction(
+            ACTION_ID_ADD_LOCATION, R.string.setting_add_location_title,
+            R.string.setting_add_location_desc
+        ))
 
+        // Saved locations are rows in the main list, one each, rather than one
+        // row that opens a long sub-menu. Sub-menus are fine for a handful of
+        // choices but were reported impossible to navigate once more than four
+        // places were saved; the main list scrolls like every other screen here.
         val extras = PreferencesManager.savedLocations
-        allActions.add(
-            GuidedAction.Builder(context)
-                .id(ACTION_ID_LOCATIONS)
-                .title(R.string.setting_locations_title)
-                .description(
-                    if (extras.isEmpty()) getString(R.string.locations_none)
-                    else getString(R.string.locations_count, extras.size)
-                )
-                .subActions(
-                    if (extras.isEmpty()) {
-                        listOf(subAction(SUB_SAVED_BASE - 1, R.string.locations_none))
-                    } else {
-                        extras.mapIndexed { i, loc ->
-                            GuidedAction.Builder(context)
-                                .id(SUB_SAVED_BASE + i)
-                                .title(loc.label)
-                                .description(R.string.locations_remove_hint)
-                                .build()
-                        }
-                    }
-                )
-                .build()
-        )
+        val summary = GuidedAction.Builder(context)
+            .id(ACTION_ID_LOCATIONS)
+            .title(R.string.setting_locations_title)
+            .description(
+                if (extras.isEmpty()) getString(R.string.locations_none)
+                else getString(R.string.locations_count, extras.size)
+            )
+        // Only the empty case gets a sub-action. An empty list would still read
+        // as "has sub-actions" and open onto nothing.
+        if (extras.isEmpty()) {
+            summary.subActions(listOf(subAction(SUB_SAVED_BASE - 1, R.string.locations_none)))
+        }
+        allActions.add(summary.build())
+        extras.forEachIndexed { i, loc ->
+            allActions.add(
+                GuidedAction.Builder(context)
+                    .id(SAVED_ROW_BASE + i)
+                    .title(loc.label)
+                    .description(R.string.locations_row_hint)
+                    .subActions(
+                        listOf(
+                            subAction(SUB_SAVED_USE_BASE + i, R.string.locations_use),
+                            subAction(SUB_SAVED_BASE + i, R.string.locations_remove)
+                        )
+                    )
+                    .build()
+            )
+        }
 
         allActions.add(
             GuidedAction.Builder(context)
@@ -529,6 +536,9 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 .build()
         )
 
+        allActions.add(checkbox(ACTION_ID_WIND_PRECIP, R.string.setting_wind_precip_title,
+            R.string.setting_wind_precip_desc, PreferencesManager.windPrecipitation))
+
         val cached = PackManager.cachedPacks(requireContext())
         allActions.add(
             GuidedAction.Builder(context)
@@ -592,6 +602,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 R.string.setting_precip_desc, PreferencesManager.animatePrecipStored))
             allActions.add(checkbox(ACTION_ID_ANIMATE, R.string.setting_animate_title,
                 R.string.setting_animate_desc, PreferencesManager.animateRadarStored))
+            allActions.add(checkbox(ACTION_ID_ANIMATE_WIND, R.string.setting_animate_wind_title,
+                R.string.setting_animate_wind_desc, PreferencesManager.animateWindStored))
         }
 
         allActions.add(checkbox(ACTION_ID_HOURLY, R.string.setting_hourly_title,
@@ -941,6 +953,24 @@ class SettingsFragment : GuidedStepSupportFragment() {
             return true
         }
 
+        if (action.id in SUB_SAVED_USE_BASE until SUB_SAVED_USE_BASE + SUB_RANGE) {
+            val index = (action.id - SUB_SAVED_USE_BASE).toInt()
+            val current = PreferencesManager.savedLocations
+            current.getOrNull(index)?.let { chosen ->
+                // A swap rather than an overwrite, so the place being replaced
+                // stays in the rotation and nothing is lost by trying one out.
+                val previous = PreferencesManager.SavedLocation(
+                    PreferencesManager.placeLabel,
+                    PreferencesManager.latitude,
+                    PreferencesManager.longitude
+                )
+                PreferencesManager.savedLocations =
+                    current.mapIndexed { i, loc -> if (i == index) previous else loc }
+                setPrimaryLocation(chosen.label, chosen.latitude, chosen.longitude)
+            }
+            return true
+        }
+
         if (action.id in SUB_SAVED_BASE until SUB_SAVED_BASE + SUB_RANGE) {
             val index = (action.id - SUB_SAVED_BASE).toInt()
             val current = PreferencesManager.savedLocations
@@ -957,8 +987,14 @@ class SettingsFragment : GuidedStepSupportFragment() {
         if (action.id in SUB_SEARCH_BASE until SUB_SEARCH_BASE + SUB_RANGE) {
             val index = (action.id - SUB_SEARCH_BASE).toInt()
             val chosen = searchResults.getOrNull(index)
+            val target = searchTarget
             searchResults = emptyList()   // collapse the pick-list afterwards
-            chosen?.let { addPlace(it) } ?: rebuild()
+            when {
+                chosen == null -> rebuild()
+                target == ACTION_ID_FIND_LOCATION ->
+                    setPrimaryLocation(chosen.shortLabel, chosen.latitude, chosen.longitude)
+                else -> addPlace(chosen)
+            }
             return true
         }
 
@@ -1164,9 +1200,28 @@ class SettingsFragment : GuidedStepSupportFragment() {
             ACTION_ID_ANIMATE -> {
                 PreferencesManager.animateRadar = action.isChecked
                 if (action.isChecked &&
-                    PreferencesManager.backgroundSource != Backgrounds.SOURCE_RADAR
+                    PreferencesManager.backgroundSource != Backgrounds.SOURCE_RADAR &&
+                    PreferencesManager.backgroundSource != Backgrounds.SOURCE_WIND
                 ) {
                     toast(getString(R.string.toast_animate_needs_radar))
+                }
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_ANIMATE_WIND -> {
+                PreferencesManager.animateWind = action.isChecked
+                if (action.isChecked &&
+                    PreferencesManager.backgroundSource != Backgrounds.SOURCE_WIND
+                ) {
+                    toast(getString(R.string.toast_needs_wind_background))
+                }
+                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+            }
+            ACTION_ID_WIND_PRECIP -> {
+                PreferencesManager.windPrecipitation = action.isChecked
+                if (action.isChecked &&
+                    PreferencesManager.backgroundSource != Backgrounds.SOURCE_WIND
+                ) {
+                    toast(getString(R.string.toast_needs_wind_background))
                 }
                 pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
             }
@@ -1279,7 +1334,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                     if (value.isBlank()) getString(R.string.basemap_attr_unset) else value
                 action.editDescription = value
             }
-            ACTION_ID_ADD_LOCATION -> {
+            ACTION_ID_ADD_LOCATION, ACTION_ID_FIND_LOCATION -> {
                 searchLocation(value, action)
             }
             ACTION_ID_DEMO_LABEL -> {
@@ -1433,8 +1488,9 @@ class SettingsFragment : GuidedStepSupportFragment() {
      */
     private fun searchLocation(query: String, action: GuidedAction) {
         if (query.isBlank()) return
+        searchTarget = action.id
         action.description = getString(R.string.locations_searching)
-        notifyActionChanged(findActionPositionById(ACTION_ID_ADD_LOCATION))
+        notifyActionChanged(findActionPositionById(action.id))
 
         Thread {
             val results = GeocodingClient.search(query)
@@ -1444,7 +1500,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 when {
                     results.isEmpty() -> {
                         action.description = getString(R.string.locations_no_match, query)
-                        notifyActionChanged(findActionPositionById(ACTION_ID_ADD_LOCATION))
+                        notifyActionChanged(findActionPositionById(action.id))
                     }
                     else -> {
                         // Always confirm, even for exactly one match. A single
@@ -1474,6 +1530,29 @@ class SettingsFragment : GuidedStepSupportFragment() {
         }.start()
     }
 
+    /**
+     * Makes a place the one the wallpaper actually shows.
+     *
+     * Marking the location as configured matters: if the first-run IP lookup
+     * had failed, the plugin would try it again later and quietly overwrite
+     * whatever was chosen here.
+     */
+    private fun setPrimaryLocation(label: String, latitude: Double, longitude: Double) {
+        PreferencesManager.latitude = latitude
+        PreferencesManager.longitude = longitude
+        PreferencesManager.placeLabel = label
+        PreferencesManager.locationConfigured = true
+        // The primary is always part of the rotation, so a saved copy of the
+        // same place would just show up twice.
+        PreferencesManager.savedLocations = PreferencesManager.savedLocations.filterNot {
+            Math.abs(it.latitude - latitude) < 0.01 && Math.abs(it.longitude - longitude) < 0.01
+        }
+        searchResults = emptyList()
+        toast(getString(R.string.locations_set, label))
+        rebuild()
+        pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+    }
+
     private fun addPlace(place: GeocodingClient.Place) {
         val existing = PreferencesManager.savedLocations
         // Guard against duplicates: the same place added twice would just show
@@ -1495,6 +1574,39 @@ class SettingsFragment : GuidedStepSupportFragment() {
     }
 
     /** Rebuilds the action list so counts and sub-action lists stay accurate. */
+    /**
+     * A search row. When a search of this kind has results waiting, they're
+     * attached here so the row is bound with them present and can be opened;
+     * results belong to exactly one search at a time ([searchTarget]).
+     */
+    private fun searchAction(id: Long, titleRes: Int, descRes: Int): GuidedAction {
+        val pending = if (searchTarget == id) searchResults else emptyList()
+        val builder = GuidedAction.Builder(requireContext())
+            .id(id)
+            .title(titleRes)
+            .editDescription("")
+            .descriptionEditable(true)
+        if (pending.isNotEmpty()) {
+            builder
+                .description(
+                    resources.getQuantityString(
+                        R.plurals.locations_pick_match, pending.size, pending.size
+                    )
+                )
+                .subActions(
+                    pending.mapIndexed { i, place ->
+                        GuidedAction.Builder(requireContext())
+                            .id(SUB_SEARCH_BASE + i)
+                            .title(place.label)
+                            .build()
+                    }
+                )
+        } else {
+            builder.description(descRes)
+        }
+        return builder.build()
+    }
+
     private fun rebuild() {
         val actions = mutableListOf<GuidedAction>()
         onCreateActions(actions, null)
