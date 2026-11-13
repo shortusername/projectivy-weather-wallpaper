@@ -16,6 +16,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
     // Which search the pending results belong to: finding your own location,
     // or adding another one to the rotation.
     private var searchTarget: Long = ACTION_ID_ADD_LOCATION
+    // Which saved place has its options open underneath it, or -1.
+    private var savedMenuIndex: Int = -1
 
     /**
      * Which settings category this screen shows, or null for the root screen
@@ -174,7 +176,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val SUB_CYCLE_ALT = 152L
 
         /** Geocoding matches occupy their own id range. */
-        private const val SUB_SEARCH_BASE = 2000L
+        // Search results are plain rows in the main list, one per match.
+        private const val RESULT_ROW_BASE = 15000L
         /** Saved locations, selected to remove. */
         private const val SUB_SAVED_BASE = 3000L
         // "Use as my location" for saved place i, and the per-place rows themselves.
@@ -235,7 +238,10 @@ class SettingsFragment : GuidedStepSupportFragment() {
         ACTION_ID_FIND_LOCATION, ACTION_ID_ADD_LOCATION, ACTION_ID_LOCATIONS, ACTION_ID_CYCLE ->
             CAT_LOCATION
 
-        in SAVED_ROW_BASE until SAVED_ROW_BASE + SUB_RANGE -> CAT_LOCATION
+        in SAVED_ROW_BASE until SAVED_ROW_BASE + SUB_RANGE,
+        in SUB_SAVED_USE_BASE until SUB_SAVED_USE_BASE + SUB_RANGE,
+        in SUB_SAVED_BASE until SUB_SAVED_BASE + SUB_RANGE,
+        in RESULT_ROW_BASE until RESULT_ROW_BASE + SUB_RANGE -> CAT_LOCATION
 
         ACTION_ID_BACKGROUND, ACTION_ID_UNSPLASH, ACTION_ID_RADAR_ZOOM, ACTION_ID_WIND_PRECIP,
         ACTION_ID_PACK,
@@ -389,6 +395,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
             ACTION_ID_FIND_LOCATION, R.string.setting_find_location_title,
             R.string.setting_find_location_desc
         ))
+        addResultRows(allActions, ACTION_ID_FIND_LOCATION)
 
         val lat = PreferencesManager.latitude.toString()
         allActions.add(
@@ -429,39 +436,49 @@ class SettingsFragment : GuidedStepSupportFragment() {
             ACTION_ID_ADD_LOCATION, R.string.setting_add_location_title,
             R.string.setting_add_location_desc
         ))
+        addResultRows(allActions, ACTION_ID_ADD_LOCATION)
 
-        // Saved locations are rows in the main list, one each, rather than one
-        // row that opens a long sub-menu. Sub-menus are fine for a handful of
-        // choices but were reported impossible to navigate once more than four
-        // places were saved; the main list scrolls like every other screen here.
+        // Saved locations are rows in the main list, one each, and a place's options
+        // are two more ordinary rows that open underneath it. No sub-menus here:
+        // they were reported impossible to navigate once more than four places
+        // were saved, and rebuilding the list while one was open left the screen
+        // stuck. The main list scrolls like every other screen in the plugin.
         val extras = PreferencesManager.savedLocations
-        val summary = GuidedAction.Builder(context)
-            .id(ACTION_ID_LOCATIONS)
-            .title(R.string.setting_locations_title)
-            .description(
-                if (extras.isEmpty()) getString(R.string.locations_none)
-                else getString(R.string.locations_count, extras.size)
-            )
-        // Only the empty case gets a sub-action. An empty list would still read
-        // as "has sub-actions" and open onto nothing.
-        if (extras.isEmpty()) {
-            summary.subActions(listOf(subAction(SUB_SAVED_BASE - 1, R.string.locations_none)))
-        }
-        allActions.add(summary.build())
+        allActions.add(
+            GuidedAction.Builder(context)
+                .id(ACTION_ID_LOCATIONS)
+                .title(R.string.setting_locations_title)
+                .description(
+                    if (extras.isEmpty()) getString(R.string.locations_none)
+                    else getString(R.string.locations_count, extras.size)
+                )
+                .build()
+        )
         extras.forEachIndexed { i, loc ->
+            val open = savedMenuIndex == i
             allActions.add(
                 GuidedAction.Builder(context)
                     .id(SAVED_ROW_BASE + i)
                     .title(loc.label)
-                    .description(R.string.locations_row_hint)
-                    .subActions(
-                        listOf(
-                            subAction(SUB_SAVED_USE_BASE + i, R.string.locations_use),
-                            subAction(SUB_SAVED_BASE + i, R.string.locations_remove)
-                        )
-                    )
+                    .description(if (open) R.string.locations_row_open else R.string.locations_row_hint)
                     .build()
             )
+            if (open) {
+                allActions.add(
+                    GuidedAction.Builder(context)
+                        .id(SUB_SAVED_USE_BASE + i)
+                        .title(R.string.locations_use)
+                        .description(loc.label)
+                        .build()
+                )
+                allActions.add(
+                    GuidedAction.Builder(context)
+                        .id(SUB_SAVED_BASE + i)
+                        .title(R.string.locations_remove)
+                        .description(loc.label)
+                        .build()
+                )
+            }
         }
 
         allActions.add(
@@ -953,51 +970,6 @@ class SettingsFragment : GuidedStepSupportFragment() {
             return true
         }
 
-        if (action.id in SUB_SAVED_USE_BASE until SUB_SAVED_USE_BASE + SUB_RANGE) {
-            val index = (action.id - SUB_SAVED_USE_BASE).toInt()
-            val current = PreferencesManager.savedLocations
-            current.getOrNull(index)?.let { chosen ->
-                // A swap rather than an overwrite, so the place being replaced
-                // stays in the rotation and nothing is lost by trying one out.
-                val previous = PreferencesManager.SavedLocation(
-                    PreferencesManager.placeLabel,
-                    PreferencesManager.latitude,
-                    PreferencesManager.longitude
-                )
-                PreferencesManager.savedLocations =
-                    current.mapIndexed { i, loc -> if (i == index) previous else loc }
-                setPrimaryLocation(chosen.label, chosen.latitude, chosen.longitude)
-            }
-            return true
-        }
-
-        if (action.id in SUB_SAVED_BASE until SUB_SAVED_BASE + SUB_RANGE) {
-            val index = (action.id - SUB_SAVED_BASE).toInt()
-            val current = PreferencesManager.savedLocations
-            current.getOrNull(index)?.let { removed ->
-                PreferencesManager.savedLocations =
-                    current.filterIndexed { i, _ -> i != index }
-                toast(getString(R.string.locations_removed, removed.label))
-                rebuild()
-                pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
-            }
-            return true
-        }
-
-        if (action.id in SUB_SEARCH_BASE until SUB_SEARCH_BASE + SUB_RANGE) {
-            val index = (action.id - SUB_SEARCH_BASE).toInt()
-            val chosen = searchResults.getOrNull(index)
-            val target = searchTarget
-            searchResults = emptyList()   // collapse the pick-list afterwards
-            when {
-                chosen == null -> rebuild()
-                target == ACTION_ID_FIND_LOCATION ->
-                    setPrimaryLocation(chosen.shortLabel, chosen.latitude, chosen.longitude)
-                else -> addPlace(chosen)
-            }
-            return true
-        }
-
         if (action.id in SUB_CYCLE_OFF..SUB_CYCLE_ALT) {
             PreferencesManager.cycleMode = when (action.id) {
                 SUB_CYCLE_EVERY -> PreferencesManager.CYCLE_EVERY
@@ -1115,6 +1087,27 @@ class SettingsFragment : GuidedStepSupportFragment() {
     }
 
     override fun onGuidedActionClicked(action: GuidedAction) {
+        // Rows in the Location screen that come in numbered runs: a search
+        // match, a saved place, and the two options under an open saved place.
+        when (action.id) {
+            in RESULT_ROW_BASE until RESULT_ROW_BASE + SUB_RANGE -> {
+                chooseSearchResult((action.id - RESULT_ROW_BASE).toInt())
+                return
+            }
+            in SAVED_ROW_BASE until SAVED_ROW_BASE + SUB_RANGE -> {
+                toggleSavedMenu((action.id - SAVED_ROW_BASE).toInt())
+                return
+            }
+            in SUB_SAVED_USE_BASE until SUB_SAVED_USE_BASE + SUB_RANGE -> {
+                useSavedLocation((action.id - SUB_SAVED_USE_BASE).toInt())
+                return
+            }
+            in SUB_SAVED_BASE until SUB_SAVED_BASE + SUB_RANGE -> {
+                removeSavedLocation((action.id - SUB_SAVED_BASE).toInt())
+                return
+            }
+        }
+
         when (action.id) {
             GuidedAction.ACTION_ID_OK -> parentFragmentManager.popBackStack()
             ACTION_ID_CAT_LOCATION -> pushCategory(CAT_LOCATION)
@@ -1514,16 +1507,18 @@ class SettingsFragment : GuidedStepSupportFragment() {
                         // that before every piece of displayed weather data
                         // was silently wrong.
                         //
-                        // Rebuild rather than assigning subActions to the bound
-                        // action: Leanback decides an action's sub-action
-                        // affordance when it binds, so a list attached
-                        // afterwards opens but can't be operated.
+                        // The matches are ordinary rows under the search row, not
+                        // a sub-menu hung off it. Clicking a row you type into
+                        // means "edit", so a sub-menu there needed the text typed
+                        // again first, and rebuilding the list while it was open
+                        // left the screen stuck.
                         rebuild()
                         toast(
                             resources.getQuantityString(
-                                R.plurals.locations_pick_match, results.size, results.size
+                                R.plurals.locations_matches_below, results.size, results.size
                             )
                         )
+                        selectRow(RESULT_ROW_BASE)
                     }
                 }
             }
@@ -1580,31 +1575,94 @@ class SettingsFragment : GuidedStepSupportFragment() {
      * results belong to exactly one search at a time ([searchTarget]).
      */
     private fun searchAction(id: Long, titleRes: Int, descRes: Int): GuidedAction {
-        val pending = if (searchTarget == id) searchResults else emptyList()
+        val matches = if (searchTarget == id) searchResults.size else 0
         val builder = GuidedAction.Builder(requireContext())
             .id(id)
             .title(titleRes)
             .editDescription("")
             .descriptionEditable(true)
-        if (pending.isNotEmpty()) {
-            builder
-                .description(
-                    resources.getQuantityString(
-                        R.plurals.locations_pick_match, pending.size, pending.size
-                    )
-                )
-                .subActions(
-                    pending.mapIndexed { i, place ->
-                        GuidedAction.Builder(requireContext())
-                            .id(SUB_SEARCH_BASE + i)
-                            .title(place.label)
-                            .build()
-                    }
-                )
+        if (matches > 0) {
+            builder.description(
+                resources.getQuantityString(R.plurals.locations_matches_below, matches, matches)
+            )
         } else {
             builder.description(descRes)
         }
         return builder.build()
+    }
+
+    /**
+     * The matches for the current search, as plain rows right under the row
+     * that was searched. They used to be a sub-menu on that same row, but a row
+     * you type into treats a click as "edit", so opening the menu meant typing
+     * again first.
+     */
+    private fun addResultRows(list: MutableList<GuidedAction>, target: Long) {
+        if (searchTarget != target) return
+        searchResults.forEachIndexed { i, place ->
+            list.add(
+                GuidedAction.Builder(requireContext())
+                    .id(RESULT_ROW_BASE + i)
+                    .title(place.label)
+                    .description(
+                        if (target == ACTION_ID_FIND_LOCATION) R.string.locations_use
+                        else R.string.locations_result_add
+                    )
+                    .build()
+            )
+        }
+    }
+
+    private fun chooseSearchResult(index: Int) {
+        val chosen = searchResults.getOrNull(index)
+        val target = searchTarget
+        searchResults = emptyList()
+        when {
+            chosen == null -> rebuild()
+            target == ACTION_ID_FIND_LOCATION ->
+                setPrimaryLocation(chosen.shortLabel, chosen.latitude, chosen.longitude)
+            else -> addPlace(chosen)
+        }
+    }
+
+    private fun toggleSavedMenu(index: Int) {
+        savedMenuIndex = if (savedMenuIndex == index) -1 else index
+        rebuild()
+        selectRow(SAVED_ROW_BASE + index)
+    }
+
+    private fun useSavedLocation(index: Int) {
+        val current = PreferencesManager.savedLocations
+        val chosen = current.getOrNull(index) ?: return
+        // A swap rather than an overwrite, so the place being replaced stays in
+        // the rotation and nothing is lost by trying one out.
+        val previous = PreferencesManager.SavedLocation(
+            PreferencesManager.placeLabel,
+            PreferencesManager.latitude,
+            PreferencesManager.longitude
+        )
+        PreferencesManager.savedLocations =
+            current.mapIndexed { i, loc -> if (i == index) previous else loc }
+        savedMenuIndex = -1
+        setPrimaryLocation(chosen.label, chosen.latitude, chosen.longitude)
+    }
+
+    private fun removeSavedLocation(index: Int) {
+        val current = PreferencesManager.savedLocations
+        val removed = current.getOrNull(index) ?: return
+        PreferencesManager.savedLocations = current.filterIndexed { i, _ -> i != index }
+        savedMenuIndex = -1
+        toast(getString(R.string.locations_removed, removed.label))
+        rebuild()
+        pushUpdate(WallpaperProviderContract.UpdateReason.PREFS_CHANGED)
+    }
+
+    /** Puts focus on a row after a rebuild, which otherwise jumps back to the top. */
+    private fun selectRow(id: Long) {
+        view?.post {
+            val position = findActionPositionById(id)
+            if (position >= 0) runCatching { setSelectedActionPosition(position) }
+        }
     }
 
     private fun rebuild() {

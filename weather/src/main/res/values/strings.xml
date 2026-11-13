@@ -150,9 +150,9 @@
     <string name="setting_find_location_desc">Type your town or city to use it as your location</string>
     <string name="locations_searching">Searching\u2026</string>
     <string name="locations_no_match">No match for \"%1$s\"</string>
-    <plurals name="locations_pick_match">
-        <item quantity="one">%1$d match \u2014 open to confirm</item>
-        <item quantity="other">%1$d matches \u2014 open to choose</item>
+    <plurals name="locations_matches_below">
+        <item quantity="one">%1$d match below \u2014 select it</item>
+        <item quantity="other">%1$d matches below \u2014 select one</item>
     </plurals>
     <string name="locations_added">Added %1$s</string>
     <string name="locations_duplicate">%1$s is already saved</string>
@@ -161,6 +161,8 @@
     <string name="locations_count">%1$d extra location(s)</string>
     <string name="locations_row_hint">Saved location \u2014 select for options</string>
     <string name="locations_use">Use as my location</string>
+    <string name="locations_result_add">Add to the rotation</string>
+    <string name="locations_row_open">Options below \u2014 select again to close</string>
     <string name="locations_remove">Remove</string>
     <string name="locations_set">Location set to %1$s</string>
     <string name="locations_removed">Removed %1$s</string>

@@ -1,61 +1,47 @@
-# Fix: every place in the rotation showed the previous place's weather
+# Fix: the location search needed typing twice, and got stuck after a pick
 
-Sixteen files, cumulative. Use THIS ONE: it contains everything from
-projectivy-weather-location-fix.zip, so don't also apply that one. No build.gradle.kts change.
-Only WallpaperProviderService.kt and PreferencesManager.kt differ from that zip.
+Sixteen files, cumulative. Use THIS ONE: it contains everything from projectivy-weather-rotation-fix.zip.
+Only SettingsFragment.kt, strings.xml and templates/strings-template.xml differ from that zip.
+No build.gradle.kts change.
 
-## The report
+## The report (from testing the 2.10 build)
 
-Someone in SW France added four extra locations. Locally the forecast was about right. Cauterets
-(mountains) was 7 degrees too warm, Montreal and St-Sauveur 1-2 degrees off, and Rio de Janeiro more
-than 20 degrees too cold.
+Type a place, press Enter: the row says "x matches - open to choose", but clicking it just makes you type
+again; after typing and pressing Enter a second time you finally get the list. Picking an option saves the
+location but leaves you stuck on the selection screen, so you have to back out of settings.
 
-## Cause
+## Causes
 
-Each refresh did this, in order: fetch the weather for the location that was active, THEN switch to
-the next location in the rotation, THEN draw with the new location's name. So every place was shown
-with the weather of the one before it. Rio wearing a Montreal or French November temperature is
-exactly this; so is mountain Cauterets wearing valley weather; Montreal and St-Sauveur are 80 km
-apart, so passing each other's data looks only slightly wrong. The home location looks right on the
-first pass because nothing precedes it.
-A small model of the old order reproduces all of that (7, 2, 1 and 25 degree errors with
-illustrative temperatures) and shows the new order correct. The selection comment in the old code
-already said "before anything fetches or draws"; the call had simply been placed after the fetch.
+1. I hung the matches off the very row you type into, as a sub-menu. A click on a row with editable text means
+   "edit", so the first click re-opened the keyboard instead of the menu.
+2. The pick handlers rebuilt the whole list while that sub-menu was still open. The other pickers (background,
+   clock, scale) just update a row's text in place and never rebuild; only the location picks did.
+3. Same shape of risk for saved places (a sub-menu, then a rebuild).
 
-## It reached further than temperature
+## What changed (SettingsFragment.kt)
 
-Only the forecast, yesterday's high and air quality were reset when the rotation moved on. The
-severe-weather alert, the aurora line and the wave conditions were cached by time alone, so an alert
-for one place could stay on screen over the next one.
-
-## What changed (WallpaperProviderService.kt, PreferencesManager.kt)
-
-1. The location is chosen first, then the weather is fetched.
-2. One function, dropCachesIfLocationChanged, resets EVERY location-specific cache (forecast,
-   yesterday's high, alert, air quality, aurora, waves) whenever the coordinates differ from the ones
-   they were fetched for. That also covers changing your location in settings, and the first-run IP
-   lookup, which can change the primary after the rotation was chosen.
-3. The rotation follows real time. The settings say "about every 15 minutes" and "about every half
-   hour", but the code counted refreshes, and a refresh can come far more often than every 15 minutes
-   (the clock alone asks for one each minute). The chosen place is now re-applied between switches, so
-   restarting the service doesn't make it jump on. Checked in a model: a refresh every minute and two
-   restarts still gave a change exactly every 15 minutes.
-   A new persisted value, locationSwitchedAt, records the last switch. It isn't exported with settings.
-
-## Not changed, but worth knowing
-
-- The world weather watch also counts refreshes (refreshIndex % n) rather than time, so it has the same
-  too-often problem when refreshes are frequent. I left it alone; it's a separate feature.
-- If a mountain place is still several degrees off after this, that can be real: forecasts for
-  mountain towns depend on the exact coordinates' elevation, and a town and the ridge above it differ
-  by several degrees. I can't tell from here.
+- Matches are ordinary rows directly under the row that was searched (Find my location or Add another location).
+  Select one to use it, or to add it to the rotation. No sub-menu, and the keyboard row is never overloaded.
+- After a search, focus moves to the first match.
+- Each saved place is a row. Selecting it opens two more ordinary rows underneath ("Use as my location" and
+  "Remove"); select the place again to close them.
+- Nothing on the Location screen is a sub-menu any more. Removed the old "None" placeholder sub-action too: any
+  sub-menu click that nothing handles falls through to the background picker, so that placeholder would have
+  reset the background to the illustrated scene if clicked.
+- Plurals: locations_pick_match replaced by locations_matches_below ("N matches below - select one").
+  New strings: locations_result_add, locations_row_open.
 
 ## Honest limits
 
-Not compiled or run from here. The checks target the mistakes that have cost builds before.
+- Not compiled or run from here, and I can't see Leanback's focus behaviour. The one part I'm least sure of is
+  the automatic focus jump to the first match (a polish step wrapped so it can't crash). If focus stays on the
+  search row, one press of Down reaches the first match.
+- If a translation defines locations_pick_match, the validator will flag it as an unknown name; delete that
+  one block.
 
 ## Verified
 
-Balanced braces; no duplicate declarations; strings defined and used; cross-file calls resolve; the
-selection call precedes the weather fetch; all twelve location-specific cache variables (six values and
-their timestamps) are reset together; no uncalled private functions; no leftover refresh-count rotation.
+Balanced braces; no duplicate declarations; strings and plurals defined and used with none left over; no stale
+references to the removed sub-menu code; the sub-menu handler no longer touches location rows; all four numbered
+row ranges map to the Location category; no ID collisions or range overlaps (12 ranges); every new helper has
+the expected number of callers; template matches strings.xml.
